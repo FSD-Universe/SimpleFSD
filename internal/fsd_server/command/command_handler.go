@@ -479,7 +479,7 @@ func (content *CommandContent) HandleClientResponse(session SessionInterface, da
 func (content *CommandContent) HandleMessage(session SessionInterface, data []string, rawLine []byte) *Result {
 	targetStation := data[1]
 	if targetStation == global.ATISManagerName {
-		if len(session.Client().AtisInfo()) == 4 {
+		if strings.HasSuffix(data[2], "z") {
 			session.Client().SetLogoffTime(strings.TrimRight(data[2], "z"))
 			return ResultSuccess()
 		}
