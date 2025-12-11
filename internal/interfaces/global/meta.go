@@ -78,5 +78,6 @@ const (
 	DefaultDirectoryPermission = 0755
 
 	FSDServerName      = "SERVER"
+	ATISManagerName    = "ATIS_MANAGER"
 	FSDDisconnectDelay = 100 * time.Millisecond
 )

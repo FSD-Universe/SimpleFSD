@@ -5,7 +5,10 @@ type Enum interface {
 	Index() int
 }
 
-const EuroscopeFrequency = "@94835"
+const (
+	ClientQueryBroadcastFrequency       = "@94835"
+	ClientQueryBroadcastFrequencyClient = "@94836"
+)
 
 const AllowAtcFacility = DEL | GND | TWR | APP | CTR | FSS
 

@@ -158,7 +158,7 @@ func (content *CommandContent) HandleVatsimAddAtc(session SessionInterface, data
 	broadcastData[4] = ""
 	go content.clientManager.BroadcastMessage(MakePacket(AddAtc, broadcastData...), session.Client(), BroadcastToClientInRange)
 	session.Client().SendMotd()
-	session.Client().SendLine(MakePacket(ClientQuery, global.FSDServerName, callsign, "ATIS"))
+	session.Client().SendLine(MakePacket(ClientQuery, global.ATISManagerName, callsign, "ATIS"))
 	return ResultSuccess()
 }
 
@@ -191,7 +191,7 @@ func (content *CommandContent) HandleFsdAddAtc(session SessionInterface, data []
 	broadcastData[4] = ""
 	go content.clientManager.BroadcastMessage(MakePacket(AddAtc, broadcastData...), session.Client(), BroadcastToClientInRange)
 	session.Client().SendMotd()
-	session.Client().SendLine(MakePacket(ClientQuery, global.FSDServerName, callsign, AtcAtis))
+	session.Client().SendLine(MakePacket(ClientQuery, global.ATISManagerName, callsign, AtcAtis))
 	return ResultSuccess()
 }
 
@@ -237,7 +237,7 @@ func (content *CommandContent) handleClientLogin(session SessionInterface, data 
 	broadcastData[4] = ""
 	go content.clientManager.BroadcastMessage(MakePacket(AddPilot, broadcastData...), session.Client(), BroadcastToClientInRange)
 	session.Client().SendMotd()
-	session.Client().SendLine(MakePacket(ClientQuery, global.FSDServerName, callsign, ClientCapacity))
+	session.Client().SendLine(MakePacket(ClientQuery, global.ATISManagerName, callsign, ClientCapacity))
 	if !content.isSimulatorServer {
 		flightPlan := session.Client().FlightPlan()
 		if flightPlan != nil && flightPlan.FromWeb && callsign != flightPlan.Callsign {
@@ -312,6 +312,18 @@ func (content *CommandContent) sendFrequencyMessage(session SessionInterface, ta
 	if session.Client() == nil {
 		return ResultError(Syntax, false, "", fmt.Errorf("client not register"))
 	}
+	// 如果目标频率是@94836
+	// 说明是客户端广播，转发给所有客户端
+	if targetStation == ClientQueryBroadcastFrequencyClient {
+		go content.clientManager.BroadcastMessage(rawLine, session.Client(), BroadcastToClientInRange)
+		return ResultSuccess()
+	}
+	// 如果目标频率是94835
+	// 说明是管制员广播，转发给所有管制员
+	if targetStation == ClientQueryBroadcastFrequency {
+		go content.clientManager.BroadcastMessage(rawLine, session.Client(), CombineBroadcastFilter(BroadcastToAtc, BroadcastToClientInRange))
+		return ResultSuccess()
+	}
 	frequency := utils.StrToInt(fmt.Sprintf("%d%s", 1, targetStation[1:]), -1)
 	if frequency == -1 {
 		return ResultError(Syntax, true, targetStation, fmt.Errorf("illegal frequency %s", targetStation))
@@ -320,10 +332,11 @@ func (content *CommandContent) sendFrequencyMessage(session SessionInterface, ta
 		// 合法频率, 发给所有客户端
 		go content.clientManager.BroadcastMessage(rawLine, session.Client(), BroadcastToClientInRange)
 	} else {
-		// 非法频率, 大概率是管制使用, 只发给管制
+		// 非法频率, 这里应该不予转发
+		// 但考虑到可能有插件自定义频率，故转发给管制员
 		go content.clientManager.BroadcastMessage(rawLine, session.Client(), CombineBroadcastFilter(BroadcastToAtc, BroadcastToClientInRange))
 	}
-	return nil
+	return ResultSuccess()
 }
 
 func (content *CommandContent) HandleClientQuery(session SessionInterface, data []string, rawLine []byte) *Result {
@@ -335,6 +348,7 @@ func (content *CommandContent) HandleClientQuery(session SessionInterface, data 
 		return ResultError(Syntax, false, "", fmt.Errorf("illegal command length %d", commandLength))
 	}
 	targetStation := data[1]
+	// 发给服务器的查询，处理后不转发
 	if targetStation == global.FSDServerName {
 		subQuery := data[2]
 		// 查询指定机组的飞行计划
@@ -369,40 +383,23 @@ func (content *CommandContent) HandleClientQuery(session SessionInterface, data 
 	// 如果发送目标是一个频率
 	if strings.HasPrefix(targetStation, "@") {
 		// 如果目标频率是94835
-		if targetStation == EuroscopeFrequency {
+		// 说明是管制员广播，更新存储的信息
+		if targetStation == ClientQueryBroadcastFrequency {
 			subQuery := data[2]
+			// OBS接牌子直接踢下线
+			if subQuery == ITakeTag && (session.Client().Rating() <= Observer || session.Client().Facility() <= OBS) {
+				return ResultError(InvalidCtrl, true, session.Client().Callsign(), nil)
+			}
 			if !content.isSimulatorServer {
-				if subQuery == ITakeTag && (session.Client().Rating() <= Observer || session.Client().Facility() <= OBS) {
-					return ResultError(InvalidCtrl, true, session.Client().Callsign(), nil)
-				}
-				if subQuery != WhoHoldTag && !session.Client().CheckFacility(AllowAtcFacility) {
-					return ResultError(InvalidCtrl, false, session.Client().Callsign(), nil)
-				}
+				// 如果是编辑飞行计划
 				if subQuery == EditFlightPlan && commandLength >= 5 {
-					targetCallsign := data[3]
-					client, ok := content.clientManager.GetClient(targetCallsign)
-					if !ok {
-						// 这里并不是发给服务器的, 所以如果找不到指定客户端, 直接返回就行
-						return ResultSuccess()
-					}
-					if client.FlightPlan() == nil {
-						return ResultError(NoFlightPlan, false, session.Client().Callsign(), nil)
-					}
-					cruiseAltitude := utils.StrToInt(data[4], -1)
-					if cruiseAltitude == -1 {
-						content.logger.ErrorF("UpdateCruiseAltitude error: illegal cruise altitude %s, %s", data[4], rawLine)
-						return ResultError(Syntax, false, session.Client().Callsign(), nil)
-					}
-					if err := content.flightPlanOperation.UpdateCruiseAltitude(client.FlightPlan(), fmt.Sprintf("FL%03d", cruiseAltitude/100)); err != nil {
-						// 这里并不是发给服务器的, 所以如果出错, 直接返回就行
-						return ResultSuccess()
-					}
+					content.handleFlightPlanEdit(data, rawLine)
 				}
 			}
 			// ATIS信息更新, 需要更新服务器存储的ATIS信息
 			if subQuery == InfoUpdate {
 				session.Client().ClearAtcAtisInfo()
-				session.Client().SendLine(MakePacket(ClientQuery, global.FSDServerName, session.Callsign(), AtcAtis))
+				session.Client().SendLine(MakePacket(ClientQuery, global.ATISManagerName, session.Callsign(), AtcAtis))
 			}
 			if subQuery == Break {
 				session.Client().SetBreak(true)
@@ -411,14 +408,32 @@ func (content *CommandContent) HandleClientQuery(session SessionInterface, data 
 				session.Client().SetBreak(false)
 			}
 		}
-		err := content.sendFrequencyMessage(session, targetStation, rawLine)
-		if err != nil {
-			return err
-		}
+		return content.sendFrequencyMessage(session, targetStation, rawLine)
 	} else {
 		_ = content.clientManager.SendMessageTo(targetStation, rawLine)
 	}
 	return ResultSuccess()
+}
+
+func (content *CommandContent) handleFlightPlanEdit(data []string, rawLine []byte) {
+	targetCallsign := data[3]
+	client, ok := content.clientManager.GetClient(targetCallsign)
+	if !ok {
+		// 这里并不是发给服务器的, 所以如果找不到指定客户端, 直接返回就行
+		return
+	}
+	if client.FlightPlan() == nil {
+		// 这里并不是发给服务器的, 所以如果出错, 什么都不用做
+		return
+	}
+	cruiseAltitude := utils.StrToInt(data[4], -1)
+	if cruiseAltitude == -1 || cruiseAltitude == 0 {
+		// 这里并不是发给服务器的, 所以如果出错, 什么都不用做
+		content.logger.ErrorF("UpdateCruiseAltitude error: illegal cruise altitude %s, %s", data[4], rawLine)
+		return
+	}
+	_ = content.flightPlanOperation.UpdateCruiseAltitude(client.FlightPlan(), fmt.Sprintf("FL%03d", cruiseAltitude/100))
+	return
 }
 
 func (content *CommandContent) HandleClientResponse(session SessionInterface, data []string, rawLine []byte) *Result {
@@ -427,7 +442,20 @@ func (content *CommandContent) HandleClientResponse(session SessionInterface, da
 	}
 	commandLength := len(data)
 	targetStation := data[1]
+	// 对服务器查询的回复，处理后不转发
 	if targetStation == global.FSDServerName {
+		subQuery := data[2]
+		if subQuery == ClientCapacity && commandLength >= 4 {
+			session.Client().UpdateCapacities(data[3:])
+			if *global.VisualPilot && session.Client().CheckCapacity(VisualPilot) {
+				session.Client().SendLine(MakePacket(SwitchVisualPilot, global.FSDServerName, session.Callsign(), "1"))
+			}
+			return ResultSuccess()
+		}
+		return ResultSuccess()
+	}
+	// 对ATISManager的ATIS信息回复，处理后不转发
+	if targetStation == global.ATISManagerName {
 		subQuery := data[2]
 		if subQuery == AtcAtis && commandLength >= 5 {
 			if data[3] == "T" {
@@ -438,27 +466,26 @@ func (content *CommandContent) HandleClientResponse(session SessionInterface, da
 			}
 			return ResultSuccess()
 		}
-		if subQuery == ClientCapacity && commandLength >= 4 {
-			session.Client().UpdateCapacities(data[3:])
-			if *global.VisualPilot && session.Client().CheckCapacity(VisualPilot) {
-				session.Client().SendLine(MakePacket(SwitchVisualPilot, global.FSDServerName, session.Callsign(), "1"))
-			}
-			return ResultSuccess()
-		}
+		return ResultSuccess()
 	}
 	if strings.HasPrefix(targetStation, "@") {
-		result := content.sendFrequencyMessage(session, targetStation, rawLine)
-		if result != nil {
-			return result
-		}
+		return content.sendFrequencyMessage(session, targetStation, rawLine)
 	} else {
 		_ = content.clientManager.SendMessageTo(targetStation, rawLine)
+		return ResultSuccess()
 	}
-	return ResultSuccess()
 }
 
 func (content *CommandContent) HandleMessage(session SessionInterface, data []string, rawLine []byte) *Result {
 	targetStation := data[1]
+	if targetStation == global.ATISManagerName {
+		if len(session.Client().AtisInfo()) == 4 {
+			session.Client().SetLogoffTime(strings.TrimRight(data[2], "z"))
+			return ResultSuccess()
+		}
+		session.Client().AddAtcAtisInfo(data[2])
+		return ResultSuccess()
+	}
 	if strings.HasPrefix(targetStation, "@") {
 		result := content.sendFrequencyMessage(session, targetStation, rawLine)
 		if result != nil {
