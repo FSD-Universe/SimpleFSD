@@ -249,6 +249,11 @@ func (client *Client) Reconnect(socket SessionInterface) bool {
 	if client.reconnectCallback != nil {
 		client.reconnectCallback()
 	}
+	client.flightPlan = nil
+	fp, err := client.flightPlanOperation.GetFlightPlanByCid(client.user.Cid)
+	if err == nil {
+		client.flightPlan = fp
+	}
 	return true
 }
 
