@@ -322,6 +322,7 @@ func (client *Client) UpsertFlightPlan(flightPlanData []string) error {
 			client.flightPlan.Locked = false
 		}
 	}
+	client.flightPlan.Callsign = client.callsign
 	err := client.flightPlanOperation.UpdateFlightPlan(client.flightPlan, flightPlanData, false)
 	return err
 }

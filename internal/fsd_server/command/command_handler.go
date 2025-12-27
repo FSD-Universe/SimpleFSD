@@ -240,7 +240,8 @@ func (content *CommandContent) handleClientLogin(session SessionInterface, data 
 	session.Client().SendLine(MakePacket(ClientQuery, global.ATISManagerName, callsign, ClientCapacity))
 	if !content.isSimulatorServer {
 		flightPlan := session.Client().FlightPlan()
-		if flightPlan != nil && flightPlan.FromWeb && callsign != flightPlan.Callsign {
+		if flightPlan != nil && flightPlan.FromWeb && callsign != flightPlan.Callsign &&
+			flightPlan.UpdatedAt.Add(time.Hour).After(time.Now()) {
 			session.Client().SendLine(MakePacket(Message, "FPlanManager", callsign,
 				fmt.Sprintf("Seems you are connect with callsign(%s), "+
 					"but we found a flightplan submit by web at %s which has callsign(%s), "+
@@ -520,6 +521,12 @@ func (content *CommandContent) HandlePlan(session SessionInterface, data []strin
 	}
 	if !session.Client().FlightPlan().Locked {
 		go content.clientManager.BroadcastMessage(rawLine, session.Client(), CombineBroadcastFilter(BroadcastToAtc, BroadcastToClientInRange))
+	} else {
+		go content.clientManager.BroadcastMessage(
+			[]byte(content.flightPlanOperation.ToString(session.Client().FlightPlan())),
+			session.Client(),
+			CombineBroadcastFilter(BroadcastToAtc, BroadcastToClientInRange),
+		)
 	}
 	return ResultSuccess()
 }

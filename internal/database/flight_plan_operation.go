@@ -56,6 +56,7 @@ func (flightPlanOperation *FlightPlanOperation) UpsertFlightPlan(user *User, cal
 			FromWeb:  false,
 		}
 	}
+	flightPlan.Callsign = callsign
 	flightPlanOperation.UpdateFlightPlanData(flightPlan, flightPlanData)
 	// 模拟机服务器就不用写数据库了, 直接返回
 	if flightPlanOperation.config.SimulatorServer {
