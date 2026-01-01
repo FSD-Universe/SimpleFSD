@@ -10,9 +10,11 @@ import (
 type Callback func()
 
 type PilotPath struct {
-	Latitude  float64 `json:"latitude"`
-	Longitude float64 `json:"longitude"`
-	Altitude  int     `json:"altitude"`
+	Latitude    float64 `json:"latitude"`
+	Longitude   float64 `json:"longitude"`
+	Altitude    int     `json:"altitude"`
+	GroundSpeed int     `json:"ground_speed"`
+	Timestamp   int64   `json:"timestamp"`
 }
 
 var (

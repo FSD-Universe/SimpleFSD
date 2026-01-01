@@ -54,7 +54,6 @@ type Client struct {
 	motdBytes               []byte
 	reconnectTimer          *time.Timer
 	lock                    sync.RWMutex
-	pathTrigger             *utils.OverflowTrigger
 	deleteCallback          Callback
 	disconnectCallback      Callback
 	reconnectCallback       Callback
@@ -112,7 +111,7 @@ func NewClient(
 		protocol:            protocol,
 		realName:            realName,
 		socket:              session,
-		position:            [4]Position{{0, 0}, {0, 0}, {0, 0}, {0, 0}},
+		position:            [4]Position{},
 		simType:             0,
 		transponder:         "2000",
 		altitude:            0,
@@ -130,15 +129,19 @@ func NewClient(
 		lock:                sync.RWMutex{},
 		arrivalAirportData:  nil,
 	}
-	client.pathTrigger = utils.NewOverflowTrigger(c.Server.FSDServer.PosUpdatePoints, client.recordPathPoint)
 	return client
 }
 
 func (client *Client) recordPathPoint() {
+	if !client.position[0].PositionValid() {
+		return
+	}
 	client.paths = append(client.paths, &PilotPath{
-		Latitude:  client.position[0].Latitude,
-		Longitude: client.position[0].Longitude,
-		Altitude:  client.altitude,
+		Latitude:    client.position[0].Latitude,
+		Longitude:   client.position[0].Longitude,
+		Altitude:    client.altitude,
+		GroundSpeed: client.groundSpeed,
+		Timestamp:   time.Now().Unix(),
 	})
 }
 
@@ -245,6 +248,9 @@ func (client *Client) Reconnect(socket SessionInterface) bool {
 	client.capacities = make(map[string]bool)
 	client.disconnect.Store(false)
 	client.socket = socket
+	for i := 0; i < 4; i++ {
+		client.position[i].ResetPosition()
+	}
 	socket.SetCallsign(client.callsign)
 	if client.reconnectCallback != nil {
 		client.reconnectCallback()
@@ -331,8 +337,7 @@ func (client *Client) SetPosition(index int, lat float64, lon float64) error {
 	if index >= 4 {
 		return errors.New("position index out of range")
 	}
-	client.position[index].Latitude = lat
-	client.position[index].Longitude = lon
+	client.position[index].SetPosition(lat, lon)
 	return nil
 }
 
@@ -349,7 +354,19 @@ func (client *Client) UpdatePilotPos(transponder int, lat float64, lon float64, 
 	client.altitude = alt
 	client.groundSpeed = groundSpeed
 	client.pbh = pbh
-	go client.pathTrigger.Tick()
+	client.recordPathPoint()
+}
+
+func (client *Client) checkVisPoint() {
+	for i := 1; i < 4; i++ {
+		if !client.position[i].PositionValid() {
+			continue
+		}
+		if client.position[i].LastUpdate.Before(time.Now().Add(-2 * time.Minute)) {
+			client.logger.InfoF("expired position point %d", i)
+			client.position[i].ResetPosition()
+		}
+	}
 }
 
 func (client *Client) UpdateAtcPos(frequency int, facility Facility, visualRange float64, lat float64, lon float64) {
@@ -357,6 +374,7 @@ func (client *Client) UpdateAtcPos(frequency int, facility Facility, visualRange
 	client.frequency = frequency
 	client.facility = facility
 	client.visualRange = visualRange
+	client.checkVisPoint()
 }
 
 func (client *Client) UpdateAtcVisPoint(visIndex int, lat float64, lon float64) error {

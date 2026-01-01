@@ -38,5 +38,8 @@ func FindNearestDistance(groupA, groupB [4]Position) (minDistance float64) {
 			}
 		}
 	}
+	if minDistance < 0 {
+		minDistance = 0
+	}
 	return
 }
