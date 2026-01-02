@@ -79,5 +79,5 @@ const (
 
 	FSDServerName      = "SERVER"
 	ATISManagerName    = "ATIS_MANAGER"
-	FSDDisconnectDelay = 100 * time.Millisecond
+	FSDDisconnectDelay = time.Second
 )
