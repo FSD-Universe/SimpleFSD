@@ -36,7 +36,7 @@ Echo未经过测试, 理论上任何实现了 FSD Version 3.000 Draft 9 协议�
 
 MIT License
 
-Copyright © 2025 Half_nothing
+Copyright © 2025-2026 Half_nothing
 
 无附加条款。
 

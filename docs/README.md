@@ -66,14 +66,8 @@ Echo未经过测试, 理论上任何实现了 FSD Version 3.000 Draft 9 协议�
 ### 构建方法
 
 1. 克隆本仓库
-2. 确保安装了go编译器并且版本>=1.23.4
-3. 在项目根目录运行如下命令`go build -x .\cmd\fsd\`
-4. \[可选\]使用upx压缩可执行文件  
-   i.  (windows)`upx.exe -9 .\fsd.exe`  
-   ii. (linux)`upx -9 .\fsd`
-5. 等待编译完成后  
-   i. 对于Windows用户, 可执行文件为fsd.exe   
-   ii. 对于linux用户, 可执行文件为fsd
+2. 确保安装了go编译器并且版本>=1.24.0
+3. 在项目根目录运行如下命令`go run build.go`
 
 ### 配置文件简介
 

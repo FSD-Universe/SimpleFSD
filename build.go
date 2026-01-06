@@ -68,12 +68,17 @@ func main() {
 
 	fmt.Println("Compressing binary...")
 
-	cmd = exec.Command("upx", "-fq", "-9", outputName)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		fmt.Printf("Compression failed: %v\n", err)
-		os.Exit(1)
+	_, err = exec.Command("upx", "--version").Output()
+	if err != nil {
+		fmt.Println("upx not found, skipping compression")
+	} else {
+		cmd = exec.Command("upx", "-fq", "-9", outputName)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			fmt.Printf("Compression failed: %v\n", err)
+			os.Exit(1)
+		}
 	}
 
 	zipFile, err := os.Create(fmt.Sprintf("%s.zip", os.Getenv("GOOS")))
