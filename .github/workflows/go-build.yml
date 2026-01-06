@@ -8,6 +8,7 @@ on:
       - .github/workflows/**
       - cmd/**
       - internal/**
+      - build.go
       - go.mod
   pull_request:
     branches:
