@@ -38,6 +38,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
+          name: linux
           path: ./linux.zip
 
   build-windows:
@@ -61,4 +62,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
+          name: windows
           path: ./windows.zip
