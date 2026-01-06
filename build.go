@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -42,14 +43,24 @@ func main() {
 		strings.TrimSpace(string(gitCommit)),
 		strings.TrimSpace(string(gitVersion)))
 
-	outputName := fmt.Sprintf("fsd-%s-%s-%s", os.Getenv("GOOS"), os.Getenv("GOARCH"), string(gitCommit[:7]))
-	if os.Getenv("GOOS") == "windows" {
+	goos := os.Getenv("GOOS")
+	if goos == "" {
+		goos = runtime.GOOS
+	}
+
+	goarch := os.Getenv("GOARCH")
+	if goarch == "" {
+		goarch = runtime.GOARCH
+	}
+
+	outputName := fmt.Sprintf("fsd-%s-%s-%s", goos, goarch, string(gitCommit[:7]))
+	if goos == "windows" {
 		outputName += ".exe"
 	}
 
 	fmt.Printf("Build argument:\n")
-	fmt.Printf("os: %s\n", os.Getenv("GOOS"))
-	fmt.Printf("arch: %s\n", os.Getenv("GOARCH"))
+	fmt.Printf("os: %s\n", goos)
+	fmt.Printf("arch: %s\n", goarch)
 	fmt.Printf("ldflags: %s\n", ldflags)
 	fmt.Printf("outputName: %s\n", outputName)
 
@@ -81,7 +92,7 @@ func main() {
 		}
 	}
 
-	zipFile, err := os.Create(fmt.Sprintf("%s.zip", os.Getenv("GOOS")))
+	zipFile, err := os.Create(fmt.Sprintf("%s.zip", goos))
 	if err != nil {
 		fmt.Printf("Failed to create zip file: %v\n", err)
 		os.Exit(1)
@@ -118,5 +129,5 @@ func main() {
 	fmt.Println("Zip file created successfully!")
 
 	fmt.Println("Output file:", outputName)
-	fmt.Println("Zip file:", fmt.Sprintf("%s.zip", os.Getenv("GOOS")))
+	fmt.Println("Zip file:", fmt.Sprintf("%s.zip", goos))
 }
