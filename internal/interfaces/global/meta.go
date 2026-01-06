@@ -6,6 +6,10 @@ import (
 	"time"
 )
 
+var BuildTime = "unknown"
+var GitCommit = "unknown"
+var GitVersion = "unknown"
+
 var (
 	DebugMode                   = flag.Bool("debug", false, "Enable debug mode")
 	ConfigFilePath              = flag.String("config", "./config.json", "Path to configuration file")

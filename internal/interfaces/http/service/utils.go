@@ -330,3 +330,10 @@ func CheckPermissionFromDatabase[T any](
 	response = CheckPermission[T](user.Permission, perm)
 	return
 }
+
+type VersionInfo struct {
+	Version    string `json:"version"`
+	GitVersion string `json:"git_version"`
+	GitCommit  string `json:"git_commit"`
+	BuildTime  string `json:"build_time"`
+}

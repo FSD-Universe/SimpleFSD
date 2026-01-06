@@ -260,9 +260,19 @@ func StartHttpServer(applicationContent *ApplicationContent) {
 
 	logger.Info("Applying router...")
 
+	data := service.NewApiResponse(
+		service.NewApiStatus("SUCCESS_GET_VERSION", "成功获取版本信息", service.Ok),
+		&service.VersionInfo{
+			BuildTime:  global.BuildTime,
+			GitVersion: global.GitVersion,
+			GitCommit:  global.GitCommit,
+			Version:    global.AppVersion,
+		},
+	)
 	apiGroup := e.Group("/api")
 	apiGroup.POST("/codes", emailController.SendVerifyEmail)
 	apiGroup.GET("/metar", metarServiceController.QueryMetar)
+	apiGroup.GET("/version", func(ctx echo.Context) error { return data.Response(ctx) })
 
 	userGroup := apiGroup.Group("/users")
 	userGroup.POST("", userController.UserRegister)
