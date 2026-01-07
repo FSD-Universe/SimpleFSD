@@ -336,5 +336,4 @@ type VersionInfo struct {
 	GitVersion string `json:"git_version"`
 	GitCommit  string `json:"git_commit"`
 	BuildTime  string `json:"build_time"`
-	Copyright  string `json:"copyright"`
 }
