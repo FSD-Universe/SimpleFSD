@@ -94,10 +94,13 @@ func (activityOperation *ActivityOperation) GetActivityById(activityId uint) (ac
 	ctx, cancel := context.WithTimeout(context.Background(), activityOperation.queryTimeout)
 	defer cancel()
 	err = activityOperation.db.WithContext(ctx).
-		Preload("Facilities.Controller").
+		Preload("Pilots", func(db *gorm.DB) *gorm.DB {
+			return db.Order("created_at")
+		}).
 		Preload("Pilots.User", func(db *gorm.DB) *gorm.DB {
 			return db.Select("id, cid, avatar_url")
 		}).
+		Preload("Facilities.Controller").
 		Preload("Facilities.Controller.User", func(db *gorm.DB) *gorm.DB {
 			return db.Select("id, cid, avatar_url")
 		}).
