@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"runtime"
 	"time"
 
 	. "github.com/half-nothing/simple-fsd/internal/interfaces/fsd"
@@ -94,6 +95,15 @@ func (content *SessionContent) handleLine(session *Session, line []byte) {
 }
 
 func (content *SessionContent) HandleConnection(session *Session) {
+	if !*global.DebugMode {
+		defer func() {
+			if r := recover(); r != nil {
+				buf := make([]byte, 1024)
+				stackSize := runtime.Stack(buf, true)
+				content.logger.ErrorF("Recovered from panic: %v", buf[:stackSize])
+			}
+		}()
+	}
 	defer func() {
 		time.AfterFunc(global.FSDDisconnectDelay, func() {
 			content.logger.DebugF("[%s](%s) x Connection closed", session.connId, session.callsign)
