@@ -279,6 +279,7 @@ func StartHttpServer(applicationContent *ApplicationContent) {
 	userGroup.GET("", userController.GetUsers, jwtMiddleware, requireNoFlushToken)
 	userGroup.POST("/sessions", userController.UserLogin)
 	userGroup.POST("/sessions/fsd", userController.UserFsdLogin)
+	userGroup.GET("/sessions/fsd", userController.UserFsdToken, jwtMiddleware, requireNoFlushToken)
 	userGroup.GET("/sessions", userController.GetToken, jwtMiddleware, requireFlushToken)
 	userGroup.GET("/availability", userController.CheckUserAvailability)
 	userGroup.GET("/histories/self", userController.GetUserHistory, jwtMiddleware, requireNoFlushToken)

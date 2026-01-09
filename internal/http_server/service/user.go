@@ -569,3 +569,19 @@ func (userService *UserService) UserFsdLogin(req *RequestFsdLogin) *ResponseFsdL
 
 	return &ResponseFsdLogin{Success: true, Token: NewFsdClaims(userService.config.JWT, user).GenerateKey()}
 }
+
+var (
+	SuccessGetFsdToken = NewApiStatus("GET_FSD_TOKEN", "成功获取密钥", Ok)
+)
+
+func (userService *UserService) UserFsdToken(req *RequestFsdToken) *ApiResponse[ResponseFsdToken] {
+	user, res := CallDBFunc[*operation.User, ResponseFsdToken](func() (*operation.User, error) {
+		return userService.userOperation.GetUserByUid(req.Uid)
+	})
+	if res != nil {
+		return NewApiResponse[ResponseFsdToken](ErrUserNotFound, nil)
+	}
+
+	token := NewFsdClaims(userService.config.JWT, user).GenerateKey()
+	return NewApiResponse(SuccessGetFsdToken, &token)
+}

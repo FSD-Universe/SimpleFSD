@@ -24,6 +24,7 @@ type UserControllerInterface interface {
 	GetToken(ctx echo.Context) error
 	ResetUserPassword(ctx echo.Context) error
 	UserFsdLogin(ctx echo.Context) error
+	UserFsdToken(ctx echo.Context) error
 }
 
 type UserController struct {
@@ -177,4 +178,13 @@ func (controller *UserController) UserFsdLogin(ctx echo.Context) error {
 		return NewErrorResponse(ctx, ErrParseParam)
 	}
 	return ctx.JSON(http.StatusOK, controller.service.UserFsdLogin(data))
+}
+
+func (controller *UserController) UserFsdToken(ctx echo.Context) error {
+	data := &RequestFsdToken{}
+	if err := SetJwtInfo(data, ctx); err != nil {
+		controller.logger.ErrorF("UserFsdToken jwt token parse error: %v", err)
+		return NewErrorResponse(ctx, ErrParseParam)
+	}
+	return controller.service.UserFsdToken(data).Response(ctx)
 }

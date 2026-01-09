@@ -51,6 +51,7 @@ type UserServiceInterface interface {
 	GetTokenWithFlushToken(req *RequestGetToken) *ApiResponse[ResponseGetToken]
 	ResetUserPassword(req *RequestResetUserPassword) *ApiResponse[ResponseResetUserPassword]
 	UserFsdLogin(req *RequestFsdLogin) *ResponseFsdLogin
+	UserFsdToken(req *RequestFsdToken) *ApiResponse[ResponseFsdToken]
 }
 
 type RequestUserRegister struct {
@@ -182,3 +183,9 @@ type ResponseFsdLogin struct {
 	ErrMsg  string `json:"error_msg"`
 	Token   string `json:"token"`
 }
+
+type RequestFsdToken struct {
+	JwtHeader
+}
+
+type ResponseFsdToken = string
