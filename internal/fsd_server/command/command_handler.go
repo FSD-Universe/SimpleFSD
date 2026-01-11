@@ -365,10 +365,10 @@ func (content *CommandContent) HandleClientQuery(session SessionInterface, data 
 			}
 			session.Client().SendLine([]byte(content.flightPlanOperation.ToString(client.FlightPlan())))
 		case AvailableAtc:
-			if isValidAtc(data[0]) {
-				session.Client().SendLine(MakePacket(ClientResponse, global.FSDServerName, data[0], "ATC:Y", data[0]))
+			if isValidAtc(data[3]) {
+				session.Client().SendLine(MakePacket(ClientResponse, global.FSDServerName, data[0], "ATC:Y", data[3]))
 			} else {
-				session.Client().SendLine(MakePacket(ClientResponse, global.FSDServerName, data[0], "ATC:N", data[0]))
+				session.Client().SendLine(MakePacket(ClientResponse, global.FSDServerName, data[0], "ATC:N", data[3]))
 			}
 		case ClientCapacity:
 			if session.Client().IsAtc() {
