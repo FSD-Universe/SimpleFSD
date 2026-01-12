@@ -178,7 +178,9 @@ func (s *VoiceServer) handleTCPConnection(conn net.Conn) {
 		return
 	}
 
-	client := NewClientInfo(logger, clientInfo.Cid, clientInfo.Callsign, conn, connection)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	client := NewClientInfo(logger, clientInfo.Cid, clientInfo.Callsign, conn, connection, cancel)
 
 	defer s.cleanupClient(client)
 
@@ -194,12 +196,20 @@ func (s *VoiceServer) handleTCPConnection(conn net.Conn) {
 	}
 	if err != nil {
 		logger.ErrorF("Failed to send message: %v", err)
+		return
+	}
+
+	if err := s.setChannelController(connection, client); err != nil {
+		_ = client.SendError(err.Error())
+		return
 	}
 
 	_ = conn.SetReadDeadline(time.Now().Add(s.config.TimeoutDuration))
 	for {
 		select {
 		case <-s.ctx.Done():
+			return
+		case <-ctx.Done():
 			return
 		default:
 			msg := &ControlMessage{}
@@ -575,10 +585,21 @@ func (s *VoiceServer) broadcastVoicePacket(packet *VoicePacket, fromAddr *net.UD
 
 	channel.ClientsMutex.RLock()
 	for _, clientTransmitter := range channel.Clients {
-		if clientTransmitter.UDPAddr != nil &&
-			clientTransmitter.UDPAddr.String() != transmitter.UDPAddr.String() &&
-			clientTransmitter.ReceiveFlag &&
-			fsd.BroadcastToClientInRange(clientTransmitter.ClientInfo.Client, client.Client) {
+		if clientTransmitter.UDPAddr == nil {
+			continue
+		}
+		if clientTransmitter.UDPAddr.String() == transmitter.UDPAddr.String() {
+			continue
+		}
+		if !clientTransmitter.ReceiveFlag {
+			continue
+		}
+		// 如果管制员在线且是机组发往机组
+		if channel.Controller != nil && !clientTransmitter.ClientInfo.Client.IsAtc() && !transmitter.ClientInfo.Client.IsAtc() {
+			targets = append(targets, clientTransmitter.UDPAddr)
+			continue
+		}
+		if fsd.BroadcastToClientInRangeWithVoiceRange(clientTransmitter.ClientInfo.Client, client.Client) {
 			targets = append(targets, clientTransmitter.UDPAddr)
 		}
 	}
@@ -656,20 +677,29 @@ func (s *VoiceServer) addToChannel(transmitter *Transmitter) {
 	s.channelsMutex.Lock()
 	defer s.channelsMutex.Unlock()
 
-	channel, exists := s.channels[transmitter.Frequency]
-	if !exists {
-		channel = &Channel{
-			Frequency:    transmitter.Frequency,
-			ClientsMutex: sync.RWMutex{},
-			Clients:      make(map[int]*Transmitter),
-			CreatedAt:    time.Now(),
-		}
-		s.channels[transmitter.Frequency] = channel
-	}
+	channel := s.getOrCreateChannel(transmitter.Frequency)
 
 	channel.ClientsMutex.Lock()
 	channel.Clients[transmitter.ClientInfo.Cid] = transmitter
 	channel.ClientsMutex.Unlock()
+}
+
+func (s *VoiceServer) getOrCreateChannel(frequency ChannelFrequency) *Channel {
+	s.channelsMutex.Lock()
+	defer s.channelsMutex.Unlock()
+
+	channel, exists := s.channels[frequency]
+	if !exists {
+		channel = &Channel{
+			Frequency:    frequency,
+			ClientsMutex: sync.RWMutex{},
+			Clients:      make(map[int]*Transmitter),
+			CreatedAt:    time.Now(),
+		}
+		s.channels[frequency] = channel
+	}
+
+	return channel
 }
 
 func (s *VoiceServer) removeFromChannel(transmitter *Transmitter) {
@@ -681,11 +711,31 @@ func (s *VoiceServer) removeFromChannel(transmitter *Transmitter) {
 		return
 	}
 
+	if channel.Controller.Callsign() == transmitter.ClientInfo.Client.Callsign() {
+		channel.Controller = nil
+	}
+
 	channel.ClientsMutex.Lock()
 	delete(channel.Clients, transmitter.ClientInfo.Cid)
 	channel.ClientsMutex.Unlock()
 
-	if len(channel.Clients) == 0 {
+	if len(channel.Clients) == 0 && channel.Controller == nil {
 		delete(s.channels, channel.Frequency)
 	}
+}
+
+func (s *VoiceServer) setChannelController(connection fsd.ClientInterface, client *ClientInfo) error {
+	if !connection.IsAtc() || connection.IsAtis() {
+		return nil
+	}
+	freq := ChannelFrequency(connection.Frequency() + 100000)
+	if freq == UNICOM || freq == EMERGENCY {
+		return fmt.Errorf("cannot use unicom or emergency frequency as main frequency")
+	}
+	c := s.getOrCreateChannel(freq)
+	if c.Controller != nil {
+		return fmt.Errorf("channel %d already has a controller", freq)
+	}
+	c.Controller = client.Client
+	return nil
 }

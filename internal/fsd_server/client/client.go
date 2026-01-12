@@ -496,7 +496,7 @@ func (client *Client) VoiceRange() float64 {
 	if client.isAtc {
 		return client.visualRange
 	}
-	distance := 4.12 * math.Sqrt(float64(client.altitude)/3.28084)
+	distance := 1.23 * math.Sqrt(float64(client.altitude))
 	return math.Max(distance, client.config.Server.VoiceServer.MinimumPilotRange)
 }
 

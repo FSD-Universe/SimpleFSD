@@ -2,6 +2,7 @@
 package voice
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -31,6 +32,7 @@ type ClientInfo struct {
 	Disconnected     atomic.Bool
 	TransmitterMutex sync.Mutex
 	Transmitters     []*Transmitter
+	cancel           context.CancelFunc
 }
 
 func NewClientInfo(
@@ -39,6 +41,7 @@ func NewClientInfo(
 	callsign string,
 	conn net.Conn,
 	client fsd.ClientInterface,
+	cancel context.CancelFunc,
 ) *ClientInfo {
 	return &ClientInfo{
 		Cid:              cid,
@@ -51,6 +54,7 @@ func NewClientInfo(
 		Disconnected:     atomic.Bool{},
 		TransmitterMutex: sync.Mutex{},
 		Transmitters:     make([]*Transmitter, 0),
+		cancel:           cancel,
 	}
 }
 
@@ -60,7 +64,7 @@ func (client *ClientInfo) MessageReceive(message []byte) {
 
 func (client *ClientInfo) ConnectionDisconnect() {
 	_ = client.SendError("fsd connection disconnected")
-	_ = client.TCPConn.Close()
+	client.cancel()
 }
 
 func (client *ClientInfo) SendError(msg string) error {

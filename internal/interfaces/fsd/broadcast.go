@@ -95,6 +95,26 @@ func BroadcastToClientInRange(toClient, fromClient ClientInterface) bool {
 	return BroadcastToClientInRangeWithThreshold(toClient, fromClient, threshold)
 }
 
+func BroadcastToClientInRangeWithVoiceRange(toClient, fromClient ClientInterface) bool {
+	if fromClient == nil {
+		return true
+	}
+	var threshold float64 = 0
+	switch {
+	case toClient.IsAtc() && fromClient.IsAtc():
+		// 如果发送方或者接收方至少有一方是管制员, 则遵循"可见即可达"
+		threshold = math.Max(toClient.VoiceRange(), fromClient.VoiceRange())
+	case toClient.IsAtc():
+		threshold = toClient.VoiceRange()
+	case fromClient.IsAtc():
+		threshold = fromClient.VisualRange()
+	default:
+		// 如果是机组与机组之间, 则需要信号双向可达
+		threshold = fromClient.VisualRange() + toClient.VisualRange()
+	}
+	return BroadcastToClientInRangeWithThreshold(toClient, fromClient, threshold)
+}
+
 func CombineBroadcastFilter(filters ...BroadcastFilter) BroadcastFilter {
 	return func(toClient, fromClient ClientInterface) bool {
 		for _, f := range filters {
