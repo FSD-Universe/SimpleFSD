@@ -205,56 +205,26 @@ func (cm *ClientManager) getWhazzupContent() *OnlineClients {
 			OnlinePilot:      0,
 			OnlineController: 0,
 		},
-		Pilots:      make([]*OnlinePilot, 0),
-		Controllers: make([]*OnlineController, 0),
 	}
 
 	clientCopy := cm.GetClientSnapshot()
 	defer cm.putSlice(clientCopy)
 
-	for _, client := range clientCopy {
-		if client == nil || client.Disconnected() {
-			continue
-		}
-		data.General.ConnectedClients++
-		if client.IsAtc() {
-			data.General.OnlineController++
-			controller := &OnlineController{
-				Cid:         client.User().Cid,
-				Callsign:    client.Callsign(),
-				RealName:    client.RealName(),
-				Latitude:    client.Position()[0].Latitude,
-				Longitude:   client.Position()[0].Longitude,
-				Rating:      client.Rating().Index(),
-				Facility:    client.Facility().Index(),
-				Frequency:   client.Frequency() + 100000,
-				Range:       int(client.VisualRange()),
-				OfflineTime: client.LogoffTime(),
-				IsBreak:     client.IsBreak(),
-				AtcInfo:     client.AtisInfo(),
-				LogonTime:   client.History().StartTime.Format(time.DateTime),
-			}
-			data.Controllers = append(data.Controllers, controller)
-		} else {
-			data.General.OnlinePilot++
-			pilot := &OnlinePilot{
-				Cid:         client.User().Cid,
-				Callsign:    client.Callsign(),
-				RealName:    client.RealName(),
-				Latitude:    client.Position()[0].Latitude,
-				Longitude:   client.Position()[0].Longitude,
-				Transponder: client.Transponder(),
-				Heading:     client.Heading(),
-				Altitude:    client.Altitude(),
-				GroundSpeed: client.GroundSpeed(),
-				FlightPlan:  client.FlightPlan(),
-				LogonTime:   client.History().StartTime.Format(time.DateTime),
-			}
-			data.Pilots = append(data.Pilots, pilot)
-		}
-	}
+	clientCopy = utils.Filter(clientCopy, func(client ClientInterface) bool {
+		return client != nil && !client.Disconnected()
+	})
 
-	data.General.GenerateTime = time.Now().Format(time.DateTime)
+	data.General.ConnectedClients = len(clientCopy)
+
+	controllers := utils.Filter(clientCopy, func(client ClientInterface) bool { return client.IsAtc() })
+	data.General.OnlineController = len(controllers)
+	data.Controllers = utils.Map(controllers, func(client ClientInterface) *OnlineController { return NewOnlineControllerFromClient(client) })
+
+	pilots := utils.Filter(clientCopy, func(client ClientInterface) bool { return !client.IsAtc() })
+	data.General.OnlinePilot = len(pilots)
+	data.Pilots = utils.Map(pilots, func(client ClientInterface) *OnlinePilot { return NewOnlinePilotFromClient(client) })
+
+	data.General.GenerateTime = time.Now().Format(time.RFC3339)
 
 	return data
 }

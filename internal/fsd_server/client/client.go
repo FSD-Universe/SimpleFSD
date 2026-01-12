@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"sync"
@@ -491,6 +492,14 @@ func (client *Client) UpdateCapacities(capacities []string) {
 	}
 }
 
+func (client *Client) VoiceRange() float64 {
+	if client.isAtc {
+		return client.visualRange
+	}
+	distance := 4.12 * math.Sqrt(float64(client.altitude)/3.28084)
+	return math.Max(distance, client.config.Server.VoiceServer.MinimumPilotRange)
+}
+
 func (client *Client) CheckCapacity(capacity string) bool {
 	return client.capacities[capacity]
 }
@@ -539,9 +548,8 @@ func (client *Client) Altitude() int { return client.altitude }
 
 func (client *Client) GroundSpeed() int { return client.groundSpeed }
 
-func (client *Client) Heading() int {
-	_, _, heading, _ := utils.UnpackPBH(client.pbh)
-	return int(heading)
+func (client *Client) Posture() (float64, float64, float64, bool) {
+	return utils.UnpackPBH(client.pbh)
 }
 
 func (client *Client) Paths() []*PilotPath {

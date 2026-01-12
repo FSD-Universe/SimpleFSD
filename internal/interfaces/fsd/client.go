@@ -50,6 +50,7 @@ type ClientInterface interface {
 	RealName() string
 	Position() [4]Position
 	VisualRange() float64
+	VoiceRange() float64
 	SetUser(user *operation.User)
 	SetSimType(simType int)
 	FlightPlan() *operation.FlightPlan
@@ -60,7 +61,7 @@ type ClientInterface interface {
 	Transponder() string
 	Altitude() int
 	GroundSpeed() int
-	Heading() int
+	Posture() (float64, float64, float64, bool)
 	Paths() []*PilotPath
 	LogoffTime() string
 	SetLogoffTime(time string)

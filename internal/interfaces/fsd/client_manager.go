@@ -4,6 +4,7 @@ package fsd
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/half-nothing/simple-fsd/internal/interfaces/operation"
 	"github.com/half-nothing/simple-fsd/internal/interfaces/queue"
@@ -73,27 +74,73 @@ type OnlinePilot struct {
 	Latitude    float64               `json:"latitude"`
 	Longitude   float64               `json:"longitude"`
 	Transponder string                `json:"transponder"`
-	Heading     int                   `json:"heading"`
+	Pitch       float64               `json:"pitch"`
+	Bank        float64               `json:"bank"`
+	Heading     float64               `json:"heading"`
+	OnGround    bool                  `json:"on_ground"`
+	VoiceRange  float64               `json:"voice_range"`
 	Altitude    int                   `json:"altitude"`
 	GroundSpeed int                   `json:"ground_speed"`
 	FlightPlan  *operation.FlightPlan `json:"flight_plan"`
 	LogonTime   string                `json:"logon_time"`
 }
 
+func NewOnlinePilotFromClient(client ClientInterface) *OnlinePilot {
+	onlinePilot := &OnlinePilot{
+		Cid:         client.User().Cid,
+		Callsign:    client.Callsign(),
+		RealName:    client.RealName(),
+		Latitude:    client.Position()[0].Latitude,
+		Longitude:   client.Position()[0].Longitude,
+		Transponder: client.Transponder(),
+		VoiceRange:  client.VoiceRange(),
+		Altitude:    client.Altitude(),
+		GroundSpeed: client.GroundSpeed(),
+		FlightPlan:  client.FlightPlan(),
+		LogonTime:   client.History().StartTime.Format(time.RFC3339),
+	}
+	onlinePilot.Pitch, onlinePilot.Bank, onlinePilot.Heading, onlinePilot.OnGround = client.Posture()
+	return onlinePilot
+}
+
 type OnlineController struct {
-	Cid         int      `json:"cid"`
-	Callsign    string   `json:"callsign"`
-	RealName    string   `json:"real_name"`
-	Latitude    float64  `json:"latitude"`
-	Longitude   float64  `json:"longitude"`
-	Rating      int      `json:"rating"`
-	Facility    int      `json:"facility"`
-	Frequency   int      `json:"frequency"`
-	Range       int      `json:"range"`
-	OfflineTime string   `json:"offline_time"`
-	IsBreak     bool     `json:"is_break"`
-	AtcInfo     []string `json:"atc_info"`
-	LogonTime   string   `json:"logon_time"`
+	Cid           int      `json:"cid"`
+	Callsign      string   `json:"callsign"`
+	RealName      string   `json:"real_name"`
+	Latitude      float64  `json:"latitude"`
+	Longitude     float64  `json:"longitude"`
+	Rating        int      `json:"rating"`
+	RatingLabel   string   `json:"rating_label"`
+	Facility      int      `json:"facility"`
+	FacilityLabel string   `json:"facility_label"`
+	Frequency     int      `json:"frequency"`
+	Range         int      `json:"range"`
+	VoiceRange    float64  `json:"voice_range"`
+	OfflineTime   string   `json:"offline_time"`
+	IsBreak       bool     `json:"is_break"`
+	AtcInfo       []string `json:"atc_info"`
+	LogonTime     string   `json:"logon_time"`
+}
+
+func NewOnlineControllerFromClient(client ClientInterface) *OnlineController {
+	return &OnlineController{
+		Cid:           client.User().Cid,
+		Callsign:      client.Callsign(),
+		RealName:      client.RealName(),
+		Latitude:      client.Position()[0].Latitude,
+		Longitude:     client.Position()[0].Longitude,
+		Rating:        client.Rating().Index(),
+		RatingLabel:   client.Rating().String(),
+		Facility:      client.Facility().Index(),
+		FacilityLabel: client.Facility().String(),
+		Frequency:     client.Frequency() + 100000,
+		Range:         int(client.VisualRange()),
+		VoiceRange:    client.VoiceRange(),
+		OfflineTime:   client.LogoffTime(),
+		IsBreak:       client.IsBreak(),
+		AtcInfo:       client.AtisInfo(),
+		LogonTime:     client.History().StartTime.Format(time.RFC3339),
+	}
 }
 
 type OnlineClients struct {

@@ -35,7 +35,7 @@ func (metarService *MetarService) QueryMetar(req *RequestQueryMetar) *ApiRespons
 		return NewApiResponse[ResponseQueryMetar](ErrIllegalParam, nil)
 	}
 
-	utils.Map[string](icaos, func(element *string) { *element = strings.TrimSpace(*element) })
+	icaos = utils.Map[string](icaos, func(element string) string { return strings.TrimSpace(element) })
 	metars := metarService.metarManager.QueryMetars(icaos)
 	if len(metars) < 1 {
 		return NewApiResponse[ResponseQueryMetar](ErrMetarNotFound, nil)
