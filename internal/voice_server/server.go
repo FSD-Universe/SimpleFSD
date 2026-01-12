@@ -200,6 +200,7 @@ func (s *VoiceServer) handleTCPConnection(conn net.Conn) {
 	}
 
 	if err := s.setChannelController(connection, client); err != nil {
+		logger.ErrorF("Failed to set channel controller: %v", err)
 		_ = client.SendError(err.Error())
 		return
 	}
@@ -736,6 +737,7 @@ func (s *VoiceServer) setChannelController(connection fsd.ClientInterface, clien
 	if c.Controller != nil {
 		return fmt.Errorf("channel %d already has a controller", freq)
 	}
+	s.logger.InfoF("Setting channel %d controller to %s(%04d)", freq, client.Callsign, client.Cid)
 	c.Controller = client.Client
 	return nil
 }
