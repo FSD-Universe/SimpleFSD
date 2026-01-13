@@ -399,7 +399,7 @@ func (cm *ClientManager) BroadcastMessage(message []byte, fromClient ClientInter
 				wg.Done()
 			}()
 
-			cm.logger.DebugF("[Broadcast] -> [%s] %s", cl.Callsign(), fullMsg[:messageLen-len(SplitSign)])
+			cm.logger.DebugF("[Broadcast] -> [%s] %s", cl.Callsign(), fullMsg[:messageLen])
 			err := cl.SendLineWithoutLog(fullMsg)
 			if err != nil && errors.Is(err, ErrClientSocketWrite) {
 				cl.MarkedDisconnect(false)

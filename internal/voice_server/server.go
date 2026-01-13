@@ -526,7 +526,7 @@ func (s *VoiceServer) handleUDPConnections() {
 			voicePacket := &VoicePacket{
 				Cid:         int(cid),
 				Transmitter: int(transmitter),
-				Frequency:   int(frequency) + 100000,
+				Frequency:   int(frequency),
 				Callsign:    callsign,
 				Data:        audioData,
 			}
