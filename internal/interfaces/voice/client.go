@@ -18,7 +18,6 @@ type Transmitter struct {
 	ClientInfo  *ClientInfo
 	Frequency   ChannelFrequency
 	ReceiveFlag bool
-	UDPAddr     *net.UDPAddr
 }
 
 type ClientInfo struct {
@@ -27,6 +26,7 @@ type ClientInfo struct {
 	Client           fsd.ClientInterface
 	Logger           log.LoggerInterface
 	TCPConn          net.Conn
+	UDPAddr          *net.UDPAddr
 	Decoder          *json.Decoder
 	Encoder          *json.Encoder
 	Disconnected     atomic.Bool
@@ -48,6 +48,7 @@ func NewClientInfo(
 		Callsign:         callsign,
 		Client:           client,
 		TCPConn:          conn,
+		UDPAddr:          nil,
 		Logger:           logger,
 		Decoder:          json.NewDecoder(conn),
 		Encoder:          json.NewEncoder(conn),

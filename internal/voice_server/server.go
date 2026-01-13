@@ -518,7 +518,7 @@ func (s *VoiceServer) handleUDPConnections() {
 			callsign := string(data[callsignStart+1 : callsignEnd])
 			audioData := data[callsignEnd:]
 
-			if cid <= 0 || frequency <= 0 || transmitter < 0 {
+			if len(audioData) != 0 && (cid < 0 || frequency <= 0 || transmitter < 0) {
 				s.logger.WarnF("Invalid voice packet fields from %s: CID=%d, Frequency=%d, Transmitter=%d", addr, cid, frequency, transmitter)
 				continue
 			}
@@ -536,28 +536,33 @@ func (s *VoiceServer) handleUDPConnections() {
 	}
 }
 
-func (s *VoiceServer) handleUpdateUDPAddress(packet *VoicePacket, addr *net.UDPAddr) (*ClientInfo, *Transmitter) {
+func (s *VoiceServer) handleUpdateUDPAddress(packet *VoicePacket, addr *net.UDPAddr) *ClientInfo {
 	s.clientsMutex.RLock()
 	client, ok := s.clients[packet.Cid]
 	s.clientsMutex.RUnlock()
 
 	if !ok {
 		s.logger.DebugF("Client %d not found", packet.Cid)
-		return nil, nil
+		return nil
 	}
 
-	transmitter := s.getOrCreateTransmitter(client, packet.Transmitter)
-	transmitter.UDPAddr = addr
-	return client, transmitter
+	client.UDPAddr = addr
+	return client
 }
 
 func (s *VoiceServer) broadcastVoicePacket(packet *VoicePacket, fromAddr *net.UDPAddr, rawData []byte) {
-	client, transmitter := s.handleUpdateUDPAddress(packet, fromAddr)
-	if client == nil || transmitter == nil {
+	client := s.handleUpdateUDPAddress(packet, fromAddr)
+	if client == nil {
 		return
 	}
 
 	if len(packet.Data) == 0 {
+		return
+	}
+
+	transmitter := s.getOrCreateTransmitter(client, packet.Transmitter)
+	if transmitter == nil {
+		client.Logger.WarnF("Client %d not found", packet.Cid)
 		return
 	}
 
@@ -586,10 +591,10 @@ func (s *VoiceServer) broadcastVoicePacket(packet *VoicePacket, fromAddr *net.UD
 
 	channel.ClientsMutex.RLock()
 	for _, clientTransmitter := range channel.Clients {
-		if clientTransmitter.UDPAddr == nil {
+		if clientTransmitter.ClientInfo.UDPAddr == nil {
 			continue
 		}
-		if clientTransmitter.UDPAddr.String() == transmitter.UDPAddr.String() {
+		if clientTransmitter.ClientInfo.Cid == transmitter.ClientInfo.Cid {
 			continue
 		}
 		if !clientTransmitter.ReceiveFlag {
@@ -597,11 +602,11 @@ func (s *VoiceServer) broadcastVoicePacket(packet *VoicePacket, fromAddr *net.UD
 		}
 		// 如果管制员在线且是机组发往机组
 		if channel.Controller != nil && !clientTransmitter.ClientInfo.Client.IsAtc() && !transmitter.ClientInfo.Client.IsAtc() {
-			targets = append(targets, clientTransmitter.UDPAddr)
+			targets = append(targets, clientTransmitter.ClientInfo.UDPAddr)
 			continue
 		}
 		if fsd.BroadcastToClientInRangeWithVoiceRange(clientTransmitter.ClientInfo.Client, client.Client) {
-			targets = append(targets, clientTransmitter.UDPAddr)
+			targets = append(targets, clientTransmitter.ClientInfo.UDPAddr)
 		}
 	}
 	channel.ClientsMutex.RUnlock()
@@ -676,7 +681,6 @@ func (s *VoiceServer) getOrCreateTransmitter(client *ClientInfo, transmitterID i
 			ClientInfo:  client,
 			Frequency:   0,
 			ReceiveFlag: false,
-			UDPAddr:     nil,
 		})
 	}
 
