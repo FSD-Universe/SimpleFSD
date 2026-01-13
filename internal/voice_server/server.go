@@ -232,7 +232,7 @@ func (s *VoiceServer) handleTCPConnection(conn net.Conn) {
 			}
 			_ = conn.SetReadDeadline(time.Now().Add(s.config.TimeoutDuration))
 
-			logger.DebugF("Received control message: %v", msg)
+			logger.DebugF("Received control message: %#v", msg)
 
 			if !s.tcpLimiter.Allow(client.TCPConn.RemoteAddr().String()) {
 				_ = client.SendError("Packet limit reached")
@@ -675,9 +675,6 @@ func (s *VoiceServer) getOrCreateTransmitter(client *ClientInfo, transmitterID i
 }
 
 func (s *VoiceServer) addToChannel(transmitter *Transmitter) {
-	s.channelsMutex.Lock()
-	defer s.channelsMutex.Unlock()
-
 	channel := s.getOrCreateChannel(transmitter.Frequency)
 
 	channel.ClientsMutex.Lock()
@@ -710,10 +707,6 @@ func (s *VoiceServer) removeFromChannel(transmitter *Transmitter) {
 	channel, exists := s.channels[transmitter.Frequency]
 	if !exists {
 		return
-	}
-
-	if channel.Controller.Callsign() == transmitter.ClientInfo.Client.Callsign() {
-		channel.Controller = nil
 	}
 
 	channel.ClientsMutex.Lock()
