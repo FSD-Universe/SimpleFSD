@@ -648,6 +648,15 @@ func (s *VoiceServer) cleanupClient(client *ClientInfo) {
 		s.removeFromChannel(transmitter)
 	}
 
+	if client.Client.IsAtc() {
+		s.channelsMutex.Lock()
+		channel, exists := s.channels[ChannelFrequency(client.Client.Frequency()+100000)]
+		if exists {
+			channel.Controller = nil
+		}
+		s.channelsMutex.Unlock()
+	}
+
 	s.clientsMutex.Lock()
 	delete(s.clients, client.Cid)
 	s.clientsMutex.Unlock()
@@ -713,7 +722,7 @@ func (s *VoiceServer) removeFromChannel(transmitter *Transmitter) {
 	delete(channel.Clients, transmitter.ClientInfo.Cid)
 	channel.ClientsMutex.Unlock()
 
-	if len(channel.Clients) == 0 && channel.Controller == nil {
+	if len(channel.Clients) == 0 {
 		delete(s.channels, channel.Frequency)
 	}
 }
