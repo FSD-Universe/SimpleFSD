@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"sync"
 	"time"
 
 	. "github.com/half-nothing/simple-fsd/internal/interfaces/fsd"
@@ -19,6 +20,7 @@ type SessionContent struct {
 	clientManager    ClientManagerInterface
 	heartbeatTimeout time.Duration
 	possibleCommands [][]byte
+	pool             *sync.Pool
 }
 
 func NewSessionContent(
@@ -32,6 +34,9 @@ func NewSessionContent(
 		commandHandler:   commandHandler,
 		clientManager:    clientManager,
 		heartbeatTimeout: heartbeatTimeout,
+		pool: &sync.Pool{New: func() interface{} {
+			return make([]byte, 1<<12) // 4KB
+		}},
 	}
 	content.possibleCommands = commandHandler.GetPossibleCommands()
 	return content
@@ -98,9 +103,11 @@ func (content *SessionContent) HandleConnection(session *Session) {
 	if !*global.DebugMode {
 		defer func() {
 			if r := recover(); r != nil {
-				buf := make([]byte, 1024)
-				stackSize := runtime.Stack(buf, true)
-				content.logger.ErrorF("Recovered from panic: %v", buf[:stackSize])
+				buf := content.pool.Get().([]byte)
+				stackSize := runtime.Stack(buf, false)
+				content.logger.ErrorF("Recovered from panic: %v", r)
+				content.logger.ErrorF("Stack trace: %s", buf[:stackSize])
+				content.pool.Put(buf)
 			}
 		}()
 	}

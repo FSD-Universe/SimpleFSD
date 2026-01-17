@@ -30,7 +30,7 @@ type AsyncHandler struct {
 
 func NewAsyncHandler(logPath, logName string, logLevel slog.Level, noLogs bool) *AsyncHandler {
 	h := &AsyncHandler{
-		ch:       make(chan []byte, 1024),
+		ch:       make(chan []byte, 1<<16), // 64KB
 		logLevel: logLevel,
 		logName:  strings.ToUpper(logName),
 	}

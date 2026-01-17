@@ -546,7 +546,7 @@ func (content *CommandContent) HandleAtcEditPlan(session SessionInterface, data 
 	if !ok {
 		return ResultError(NoCallsignFound, false, session.Client().Callsign(), fmt.Errorf("%s not exists", targetCallsign))
 	}
-	if client.FlightPlan == nil {
+	if client.FlightPlan() == nil {
 		return ResultError(NoFlightPlan, false, session.Client().Callsign(), fmt.Errorf("%s do not have filght plan", session.Client().Callsign()))
 	}
 	client.FlightPlan().Locked = !content.isSimulatorServer
