@@ -251,7 +251,7 @@ func (s *VoiceServer) handleTCPConnection(conn net.Conn) {
 }
 
 func (s *VoiceServer) validateControlMessage(msg *ControlMessage) error {
-	if msg.Cid == 0 {
+	if msg.Cid <= 0 {
 		return errors.New("missing cid")
 	}
 	if len(msg.Data) > s.config.MaxDataSize {
@@ -637,7 +637,7 @@ func (s *VoiceServer) sendControlMessage(conn net.Conn, msg *ControlMessage) {
 	if err != nil {
 		s.logger.ErrorF("failed to marshal control message: %v", err)
 	}
-
+	data = append(data, '\n')
 	_, err = conn.Write(data)
 	if err != nil {
 		s.logger.ErrorF("failed to write control message: %v", err)
