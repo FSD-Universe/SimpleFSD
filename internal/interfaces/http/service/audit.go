@@ -10,26 +10,18 @@ var (
 
 type AuditServiceInterface interface {
 	GetAuditLogPage(req *RequestGetAuditLog) *ApiResponse[ResponseGetAuditLog]
-	LogUnlawfulOverreach(req *RequestLogUnlawfulOverreach) *ApiResponse[ResponseLogUnlawfulOverreach]
+	LogUnlawfulOverreach(req *RequestLogUnlawfulOverreach) *ApiResponse[bool]
 }
 
 type RequestGetAuditLog struct {
 	JwtHeader
-	Page     int `query:"page_number"`
-	PageSize int `query:"page_size"`
+	PageArguments
 }
 
-type ResponseGetAuditLog struct {
-	Items    []*operation.AuditLog `json:"items"`
-	Page     int                   `json:"page"`
-	PageSize int                   `json:"page_size"`
-	Total    int64                 `json:"total"`
-}
+type ResponseGetAuditLog = *PageResponse[*operation.AuditLog]
 
 type RequestLogUnlawfulOverreach struct {
 	JwtHeader
 	EchoContentHeader
 	AccessPath string `json:"access_path"`
 }
-
-type ResponseLogUnlawfulOverreach bool

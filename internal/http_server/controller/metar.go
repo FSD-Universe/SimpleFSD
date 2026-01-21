@@ -38,7 +38,7 @@ func (controller *MetarController) QueryMetar(ctx echo.Context) error {
 	res := controller.metarService.QueryMetar(data)
 	if data.Raw {
 		if res.Data != nil {
-			return TextResponse(ctx, res.HttpCode, fmt.Sprintf("<pre>%s</pre>", strings.Join(*res.Data, "</pre>\b<pre>")))
+			return TextResponse(ctx, res.HttpCode, fmt.Sprintf("<pre>%s</pre>", strings.Join(res.Data, "</pre>\b<pre>")))
 		} else {
 			return TextResponse(ctx, NotFound.Code(), "")
 		}

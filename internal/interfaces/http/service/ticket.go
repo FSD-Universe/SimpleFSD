@@ -16,36 +16,24 @@ var (
 type TicketServiceInterface interface {
 	GetTickets(req *RequestGetTickets) *ApiResponse[ResponseGetTickets]
 	GetUserTickets(req *RequestGetUserTickets) *ApiResponse[ResponseGetUserTickets]
-	CreateTicket(req *RequestCreateTicket) *ApiResponse[ResponseCreateTicket]
-	CloseTicket(req *RequestCloseTicket) *ApiResponse[ResponseCloseTicket]
-	DeleteTicket(req *RequestDeleteTicket) *ApiResponse[ResponseDeleteTicket]
+	CreateTicket(req *RequestCreateTicket) *ApiResponse[bool]
+	CloseTicket(req *RequestCloseTicket) *ApiResponse[bool]
+	DeleteTicket(req *RequestDeleteTicket) *ApiResponse[bool]
 }
 
 type RequestGetTickets struct {
 	JwtHeader
-	Page     int `query:"page_number"`
-	PageSize int `query:"page_size"`
+	PageArguments
 }
 
-type ResponseGetTickets struct {
-	Items    []*operation.Ticket `json:"items"`
-	Page     int                 `json:"page"`
-	PageSize int                 `json:"page_size"`
-	Total    int64               `json:"total"`
-}
+type ResponseGetTickets = *PageResponse[*operation.Ticket]
 
 type RequestGetUserTickets struct {
 	JwtHeader
-	Page     int `query:"page_number"`
-	PageSize int `query:"page_size"`
+	PageArguments
 }
 
-type ResponseGetUserTickets struct {
-	Items    []*operation.UserTicket `json:"items"`
-	Page     int                     `json:"page"`
-	PageSize int                     `json:"page_size"`
-	Total    int64                   `json:"total"`
-}
+type ResponseGetUserTickets = *PageResponse[*operation.UserTicket]
 
 type RequestCreateTicket struct {
 	JwtHeader
@@ -55,8 +43,6 @@ type RequestCreateTicket struct {
 	Content string `json:"content"`
 }
 
-type ResponseCreateTicket bool
-
 type RequestCloseTicket struct {
 	JwtHeader
 	EchoContentHeader
@@ -64,12 +50,8 @@ type RequestCloseTicket struct {
 	Reply    string `json:"reply"`
 }
 
-type ResponseCloseTicket bool
-
 type RequestDeleteTicket struct {
 	JwtHeader
 	EchoContentHeader
 	TicketId uint `param:"tid"`
 }
-
-type ResponseDeleteTicket bool

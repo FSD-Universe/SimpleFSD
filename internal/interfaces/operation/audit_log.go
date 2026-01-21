@@ -54,6 +54,9 @@ const (
 	AnnouncementPublished           AuditEventType = "AnnouncementPublished"
 	AnnouncementUpdated             AuditEventType = "AnnouncementUpdated"
 	AnnouncementDeleted             AuditEventType = "AnnouncementDeleted"
+	OAuth2ClientCreated             AuditEventType = "OAuth2ClientCreated"
+	OAuth2ClientUpdated             AuditEventType = "OAuth2ClientUpdated"
+	OAuth2ClientDeleted             AuditEventType = "OAuth2ClientDeleted"
 )
 
 type AuditLogOperationInterface interface {

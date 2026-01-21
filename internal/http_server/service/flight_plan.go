@@ -38,20 +38,20 @@ func NewFlightPlanService(
 	}
 }
 
-func (flightPlanService *FlightPlanService) SubmitFlightPlan(req *RequestSubmitFlightPlan) *ApiResponse[ResponseSubmitFlightPlan] {
+func (flightPlanService *FlightPlanService) SubmitFlightPlan(req *RequestSubmitFlightPlan) *ApiResponse[bool] {
 	if req.FlightPlan == nil {
-		return NewApiResponse[ResponseSubmitFlightPlan](ErrIllegalParam, nil)
+		return NewApiResponse(ErrIllegalParam, false)
 	}
 
 	if flightPlan, err := flightPlanService.flightPlanOperation.GetFlightPlanByCid(req.JwtHeader.Cid); err != nil {
 		if errors.Is(err, operation.ErrFlightPlanNotFound) {
 			req.FlightPlan.ID = 0
 		} else {
-			return NewApiResponse[ResponseSubmitFlightPlan](ErrDatabaseFail, nil)
+			return NewApiResponse(ErrDatabaseFail, false)
 		}
 	} else {
 		if flightPlan.Locked && flightPlan.DepartureAirport == req.DepartureAirport && flightPlan.ArrivalAirport == req.ArrivalAirport {
-			return NewApiResponse[ResponseSubmitFlightPlan](ErrFlightPlanLocked, nil)
+			return NewApiResponse(ErrFlightPlanLocked, false)
 		}
 		req.FlightPlan.Locked = false
 		req.FlightPlan.ID = flightPlan.ID
@@ -61,7 +61,7 @@ func (flightPlanService *FlightPlanService) SubmitFlightPlan(req *RequestSubmitF
 	req.FlightPlan.Cid = req.JwtHeader.Cid
 	req.FlightPlan.FromWeb = true
 
-	if res := CallDBFuncWithoutRet[ResponseSubmitFlightPlan](func() error {
+	if res := CallDBFuncWithoutRet[bool](func() error {
 		return flightPlanService.flightPlanOperation.SaveFlightPlan(req.FlightPlan)
 	}); res != nil {
 		return res
@@ -76,8 +76,7 @@ func (flightPlanService *FlightPlanService) SubmitFlightPlan(req *RequestSubmitF
 		},
 	})
 
-	data := ResponseSubmitFlightPlan(true)
-	return NewApiResponse(SuccessSubmitFlightPlan, &data)
+	return NewApiResponse(SuccessSubmitFlightPlan, true)
 }
 
 func (flightPlanService *FlightPlanService) GetFlightPlan(req *RequestGetFlightPlan) *ApiResponse[ResponseGetFlightPlan] {
@@ -88,7 +87,7 @@ func (flightPlanService *FlightPlanService) GetFlightPlan(req *RequestGetFlightP
 		return res
 	}
 
-	return NewApiResponse(SuccessGetFlightPlan, &ResponseGetFlightPlan{FlightPlan: flightPlan})
+	return NewApiResponse(SuccessGetFlightPlan, flightPlan)
 }
 
 func (flightPlanService *FlightPlanService) GetFlightPlans(req *RequestGetFlightPlans) *ApiResponse[ResponseGetFlightPlans] {
@@ -105,7 +104,7 @@ func (flightPlanService *FlightPlanService) GetFlightPlans(req *RequestGetFlight
 		return res
 	}
 
-	return NewApiResponse(SuccessGetFlightPlans, &ResponseGetFlightPlans{
+	return NewApiResponse(SuccessGetFlightPlans, &PageResponse[*operation.FlightPlan]{
 		Items:    flightPlans,
 		Total:    total,
 		Page:     req.Page,
@@ -113,15 +112,15 @@ func (flightPlanService *FlightPlanService) GetFlightPlans(req *RequestGetFlight
 	})
 }
 
-func (flightPlanService *FlightPlanService) DeleteSelfFlightPlan(req *RequestDeleteSelfFlightPlan) *ApiResponse[ResponseDeleteSelfFlightPlan] {
-	flightPlan, res := CallDBFunc[*operation.FlightPlan, ResponseDeleteSelfFlightPlan](func() (*operation.FlightPlan, error) {
+func (flightPlanService *FlightPlanService) DeleteSelfFlightPlan(req *RequestDeleteSelfFlightPlan) *ApiResponse[bool] {
+	flightPlan, res := CallDBFunc[*operation.FlightPlan, bool](func() (*operation.FlightPlan, error) {
 		return flightPlanService.flightPlanOperation.GetFlightPlanByCid(req.Cid)
 	})
 	if res != nil {
 		return res
 	}
 
-	if res := CallDBFuncWithoutRet[ResponseDeleteSelfFlightPlan](func() error {
+	if res := CallDBFuncWithoutRet[bool](func() error {
 		return flightPlanService.flightPlanOperation.DeleteSelfFlightPlan(flightPlan)
 	}); res != nil {
 		return res
@@ -148,27 +147,26 @@ func (flightPlanService *FlightPlanService) DeleteSelfFlightPlan(req *RequestDel
 		},
 	})
 
-	data := ResponseDeleteSelfFlightPlan(true)
-	return NewApiResponse(SuccessDeleteSelfFlightPlan, &data)
+	return NewApiResponse(SuccessDeleteSelfFlightPlan, true)
 }
 
-func (flightPlanService *FlightPlanService) DeleteFlightPlan(req *RequestDeleteFlightPlan) *ApiResponse[ResponseDeleteFlightPlan] {
+func (flightPlanService *FlightPlanService) DeleteFlightPlan(req *RequestDeleteFlightPlan) *ApiResponse[bool] {
 	if req.TargetCid <= 0 {
-		return NewApiResponse[ResponseDeleteFlightPlan](ErrIllegalParam, nil)
+		return NewApiResponse(ErrIllegalParam, false)
 	}
 
-	if res := CheckPermission[ResponseDeleteFlightPlan](req.Permission, operation.FlightPlanDelete); res != nil {
+	if res := CheckPermission[bool](req.Permission, operation.FlightPlanDelete); res != nil {
 		return res
 	}
 
-	flightPlan, res := CallDBFunc[*operation.FlightPlan, ResponseDeleteFlightPlan](func() (*operation.FlightPlan, error) {
+	flightPlan, res := CallDBFunc[*operation.FlightPlan, bool](func() (*operation.FlightPlan, error) {
 		return flightPlanService.flightPlanOperation.GetFlightPlanByCid(req.TargetCid)
 	})
 	if res != nil {
 		return res
 	}
 
-	if res := CallDBFuncWithoutRet[ResponseDeleteFlightPlan](func() error {
+	if res := CallDBFuncWithoutRet[bool](func() error {
 		return flightPlanService.flightPlanOperation.DeleteFlightPlan(flightPlan)
 	}); res != nil {
 		return res
@@ -195,20 +193,19 @@ func (flightPlanService *FlightPlanService) DeleteFlightPlan(req *RequestDeleteF
 		},
 	})
 
-	data := ResponseDeleteFlightPlan(true)
-	return NewApiResponse(SuccessDeleteFlightPlan, &data)
+	return NewApiResponse(SuccessDeleteFlightPlan, true)
 }
 
-func (flightPlanService *FlightPlanService) LockFlightPlan(req *RequestLockFlightPlan) *ApiResponse[ResponseLockFlightPlan] {
+func (flightPlanService *FlightPlanService) LockFlightPlan(req *RequestLockFlightPlan) *ApiResponse[bool] {
 	if req.TargetCid <= 0 {
-		return NewApiResponse[ResponseLockFlightPlan](ErrIllegalParam, nil)
+		return NewApiResponse(ErrIllegalParam, false)
 	}
 
-	if res := CheckPermission[ResponseLockFlightPlan](req.Permission, operation.FlightPlanChangeLock); res != nil {
+	if res := CheckPermission[bool](req.Permission, operation.FlightPlanChangeLock); res != nil {
 		return res
 	}
 
-	flightPlan, res := CallDBFunc[*operation.FlightPlan, ResponseLockFlightPlan](func() (*operation.FlightPlan, error) {
+	flightPlan, res := CallDBFunc[*operation.FlightPlan, bool](func() (*operation.FlightPlan, error) {
 		return flightPlanService.flightPlanOperation.GetFlightPlanByCid(req.TargetCid)
 	})
 	if res != nil {
@@ -217,18 +214,16 @@ func (flightPlanService *FlightPlanService) LockFlightPlan(req *RequestLockFligh
 
 	if flightPlan.Locked == req.Lock {
 		if req.Lock {
-			return NewApiResponse[ResponseLockFlightPlan](ErrFlightPlanLocked, nil)
-		} else {
-			return NewApiResponse[ResponseLockFlightPlan](ErrFlightPlanUnlocked, nil)
+			return NewApiResponse(ErrFlightPlanLocked, false)
 		}
+		return NewApiResponse(ErrFlightPlanUnlocked, false)
 	}
 
-	if res := CallDBFuncWithoutRet[ResponseLockFlightPlan](func() error {
+	if res := CallDBFuncWithoutRet[bool](func() error {
 		if req.Lock {
 			return flightPlanService.flightPlanOperation.LockFlightPlan(flightPlan)
-		} else {
-			return flightPlanService.flightPlanOperation.UnlockFlightPlan(flightPlan)
 		}
+		return flightPlanService.flightPlanOperation.UnlockFlightPlan(flightPlan)
 	}); res != nil {
 		return res
 	}
@@ -264,6 +259,5 @@ func (flightPlanService *FlightPlanService) LockFlightPlan(req *RequestLockFligh
 		),
 	})
 
-	data := ResponseLockFlightPlan(true)
-	return NewApiResponse(SuccessLockFlightPlan, &data)
+	return NewApiResponse(SuccessLockFlightPlan, true)
 }

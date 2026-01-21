@@ -47,12 +47,12 @@ func (clientService *ClientService) GetOnlineClients() *fsd.OnlineClients {
 	return clientService.clientManager.GetWhazzupContent()
 }
 
-func (clientService *ClientService) SendMessageToClient(req *RequestSendMessageToClient) *ApiResponse[ResponseSendMessageToClient] {
+func (clientService *ClientService) SendMessageToClient(req *RequestSendMessageToClient) *ApiResponse[bool] {
 	if req.Uid <= 0 || req.SendTo == "" || req.Message == "" {
-		return NewApiResponse[ResponseSendMessageToClient](ErrIllegalParam, nil)
+		return NewApiResponse(ErrIllegalParam, false)
 	}
 
-	if res := CheckPermission[ResponseSendMessageToClient](req.Permission, operation.ClientSendMessage); res != nil {
+	if res := CheckPermission[bool](req.Permission, operation.ClientSendMessage); res != nil {
 		return res
 	}
 
@@ -65,9 +65,9 @@ func (clientService *ClientService) SendMessageToClient(req *RequestSendMessageT
 		},
 	}); err != nil {
 		if errors.Is(err, fsd.ErrCallsignNotFound) {
-			return NewApiResponse[ResponseSendMessageToClient](ErrClientNotFound, nil)
+			return NewApiResponse(ErrClientNotFound, false)
 		}
-		return NewApiResponse[ResponseSendMessageToClient](ErrSendMessage, nil)
+		return NewApiResponse(ErrSendMessage, false)
 	}
 
 	clientService.messageQueue.Publish(&queue.Message{
@@ -82,16 +82,15 @@ func (clientService *ClientService) SendMessageToClient(req *RequestSendMessageT
 		),
 	})
 
-	data := ResponseSendMessageToClient(true)
-	return NewApiResponse[ResponseSendMessageToClient](SuccessSendMessage, &data)
+	return NewApiResponse(SuccessSendMessage, true)
 }
 
-func (clientService *ClientService) KillClient(req *RequestKillClient) *ApiResponse[ResponseKillClient] {
+func (clientService *ClientService) KillClient(req *RequestKillClient) *ApiResponse[bool] {
 	if req.Uid <= 0 || req.TargetCallsign == "" {
-		return NewApiResponse[ResponseKillClient](ErrIllegalParam, nil)
+		return NewApiResponse(ErrIllegalParam, false)
 	}
 
-	user, res := CheckPermissionFromDatabase[ResponseKillClient](clientService.userOperation, req.Uid, operation.ClientKill)
+	user, res := CheckPermissionFromDatabase[bool](clientService.userOperation, req.Uid, operation.ClientKill)
 	if res != nil {
 		return res
 	}
@@ -100,9 +99,9 @@ func (clientService *ClientService) KillClient(req *RequestKillClient) *ApiRespo
 	if err != nil {
 		// KickClientFromServer目前仅返回ErrCallsignNotFound错误
 		if errors.Is(err, fsd.ErrCallsignNotFound) {
-			return NewApiResponse[ResponseKillClient](ErrClientNotFound, nil)
+			return NewApiResponse(ErrClientNotFound, false)
 		}
-		return NewApiResponse[ResponseKillClient](ErrUnknownServerError, nil)
+		return NewApiResponse(ErrUnknownServerError, false)
 	}
 
 	clientService.messageQueue.Publish(&queue.Message{
@@ -126,30 +125,28 @@ func (clientService *ClientService) KillClient(req *RequestKillClient) *ApiRespo
 		),
 	})
 
-	data := ResponseKillClient(true)
-	return NewApiResponse[ResponseKillClient](SuccessKillClient, &data)
+	return NewApiResponse(SuccessKillClient, true)
 }
 
-func (clientService *ClientService) GetClientFlightPath(req *RequestClientPath) *ApiResponse[ResponseClientPath] {
+func (clientService *ClientService) GetClientFlightPath(req *RequestClientPath) *ApiResponse[[]*fsd.PilotPath] {
 	if req.Callsign == "" {
-		return NewApiResponse[ResponseClientPath](ErrIllegalParam, nil)
+		return NewApiResponse[[]*fsd.PilotPath](ErrIllegalParam, nil)
 	}
 
 	client, exist := clientService.clientManager.GetClient(req.Callsign)
 	if !exist {
-		return NewApiResponse[ResponseClientPath](ErrClientNotFound, nil)
+		return NewApiResponse[[]*fsd.PilotPath](ErrClientNotFound, nil)
 	}
 
-	data := ResponseClientPath(client.Paths())
-	return NewApiResponse(SuccessGetClientPath, &data)
+	return NewApiResponse(SuccessGetClientPath, client.Paths())
 }
 
-func (clientService *ClientService) SendBroadcastMessage(req *RequestSendBroadcastMessage) *ApiResponse[ResponseSendBroadcastMessage] {
+func (clientService *ClientService) SendBroadcastMessage(req *RequestSendBroadcastMessage) *ApiResponse[bool] {
 	if req.Message == "" || !fsd.IsValidBroadcastTarget(req.Target) {
-		return NewApiResponse[ResponseSendBroadcastMessage](ErrIllegalParam, nil)
+		return NewApiResponse(ErrIllegalParam, false)
 	}
 
-	if res := CheckPermission[ResponseSendBroadcastMessage](req.Permission, operation.ClientSendBroadcastMessage); res != nil {
+	if res := CheckPermission[bool](req.Permission, operation.ClientSendBroadcastMessage); res != nil {
 		return res
 	}
 
@@ -177,6 +174,5 @@ func (clientService *ClientService) SendBroadcastMessage(req *RequestSendBroadca
 		),
 	})
 
-	data := ResponseSendBroadcastMessage(true)
-	return NewApiResponse[ResponseSendBroadcastMessage](SuccessSendBroadcastMessage, &data)
+	return NewApiResponse(SuccessSendBroadcastMessage, true)
 }

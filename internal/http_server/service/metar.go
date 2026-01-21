@@ -40,6 +40,5 @@ func (metarService *MetarService) QueryMetar(req *RequestQueryMetar) *ApiRespons
 	if len(metars) < 1 {
 		return NewApiResponse[ResponseQueryMetar](ErrMetarNotFound, nil)
 	}
-	data := ResponseQueryMetar(metars)
-	return NewApiResponse(SuccessGetMetar, &data)
+	return NewApiResponse(SuccessGetMetar, ResponseQueryMetar(metars))
 }

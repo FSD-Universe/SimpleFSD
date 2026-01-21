@@ -90,17 +90,17 @@ func (emailService *EmailService) deleteVerifyCode(email string) {
 	emailService.emailCodeCache.Del(email)
 }
 
-func (emailService *EmailService) SendEmailVerifyCode(req *RequestEmailVerifyCode) *ApiResponse[ResponseEmailVerifyCode] {
+func (emailService *EmailService) SendEmailVerifyCode(req *RequestEmailVerifyCode) *ApiResponse[*ResponseEmailVerifyCode] {
 	if emailService.config.EmailServer == nil {
 		return NewApiResponse(SendEmailSuccess, &ResponseEmailVerifyCode{Email: req.Email})
 	}
 
 	if req.Email == "" || req.Cid == 0 {
-		return NewApiResponse[ResponseEmailVerifyCode](ErrIllegalParam, nil)
+		return NewApiResponse[*ResponseEmailVerifyCode](ErrIllegalParam, nil)
 	}
 
 	if val, ok := emailService.lastSendTimeCache.Get(req.Email); ok {
-		return NewApiResponse[ResponseEmailVerifyCode](NewApiStatus(
+		return NewApiResponse[*ResponseEmailVerifyCode](NewApiStatus(
 			"EMAIL_SEND_INTERVAL",
 			fmt.Sprintf("邮件已发送, 请在%.0f秒后重试", time.Now().Sub(val).Seconds()),
 			BadRequest,
@@ -110,7 +110,7 @@ func (emailService *EmailService) SendEmailVerifyCode(req *RequestEmailVerifyCod
 	var cid int
 
 	if req.Cid == -1 {
-		targetUser, res := CallDBFunc[*operation.User, ResponseEmailVerifyCode](func() (*operation.User, error) {
+		targetUser, res := CallDBFunc[*operation.User, *ResponseEmailVerifyCode](func() (*operation.User, error) {
 			return emailService.userOperation.GetUserByEmail(req.Email)
 		})
 		if res != nil {
@@ -131,9 +131,9 @@ func (emailService *EmailService) SendEmailVerifyCode(req *RequestEmailVerifyCod
 		},
 	}); err != nil {
 		if errors.Is(err, ErrRenderingTemplate) {
-			return NewApiResponse[ResponseEmailVerifyCode](ErrRenderTemplate, nil)
+			return NewApiResponse[*ResponseEmailVerifyCode](ErrRenderTemplate, nil)
 		}
-		return NewApiResponse[ResponseEmailVerifyCode](ErrSendEmail, nil)
+		return NewApiResponse[*ResponseEmailVerifyCode](ErrSendEmail, nil)
 	}
 
 	emailService.emailCodeCache.SetWithTTL(req.Email, &EmailCode{Code: code, Cid: req.Cid}, emailService.config.VerifyExpiredDuration)

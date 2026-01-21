@@ -23,51 +23,32 @@ type ControllerServiceInterface interface {
 	GetCurrentControllerRecord(req *RequestGetCurrentControllerRecord) *ApiResponse[ResponseGetCurrentControllerRecord]
 	GetControllerRecord(req *RequestGetControllerRecord) *ApiResponse[ResponseGetControllerRecord]
 	GetControllerRatings(req *RequestControllerRatingList) *ApiResponse[ResponseControllerRatingList]
-	UpdateControllerRating(req *RequestUpdateControllerRating) *ApiResponse[ResponseUpdateControllerRating]
-	AddControllerRecord(req *RequestAddControllerRecord) *ApiResponse[ResponseAddControllerRecord]
-	DeleteControllerRecord(req *RequestDeleteControllerRecord) *ApiResponse[ResponseDeleteControllerRecord]
+	UpdateControllerRating(req *RequestUpdateControllerRating) *ApiResponse[bool]
+	AddControllerRecord(req *RequestAddControllerRecord) *ApiResponse[bool]
+	DeleteControllerRecord(req *RequestDeleteControllerRecord) *ApiResponse[bool]
 }
 
 type RequestControllerList struct {
 	JwtHeader
-	Page     int `query:"page_number"`
-	PageSize int `query:"page_size"`
+	PageArguments
 }
 
-type ResponseControllerList struct {
-	Items    []*operation.User `json:"items"`
-	Page     int               `json:"page"`
-	PageSize int               `json:"page_size"`
-	Total    int64             `json:"total"`
-}
+type ResponseControllerList = *PageResponse[*operation.User]
 
 type RequestGetCurrentControllerRecord struct {
 	JwtHeader
-	Page     int `query:"page_number"`
-	PageSize int `query:"page_size"`
+	PageArguments
 }
 
-type ResponseGetCurrentControllerRecord struct {
-	Items    []*operation.ControllerRecord `json:"items"`
-	Page     int                           `json:"page"`
-	PageSize int                           `json:"page_size"`
-	Total    int64                         `json:"total"`
-}
+type ResponseGetCurrentControllerRecord = *PageResponse[*operation.ControllerRecord]
 
 type RequestGetControllerRecord struct {
 	JwtHeader
+	PageArguments
 	TargetUid uint `param:"uid"`
-	Page      int  `query:"page_number"`
-	PageSize  int  `query:"page_size"`
 }
 
-type ResponseGetControllerRecord struct {
-	Items    []*operation.ControllerRecord `json:"items"`
-	Page     int                           `json:"page"`
-	PageSize int                           `json:"page_size"`
-	Total    int64                         `json:"total"`
-}
-
+type ResponseGetControllerRecord = *PageResponse[*operation.ControllerRecord]
 type RequestUpdateControllerRating struct {
 	JwtHeader
 	EchoContentHeader
@@ -80,8 +61,6 @@ type RequestUpdateControllerRating struct {
 	SoloUntil    time.Time `json:"solo_until"`
 }
 
-type ResponseUpdateControllerRating bool
-
 type RequestAddControllerRecord struct {
 	JwtHeader
 	EchoContentHeader
@@ -90,16 +69,12 @@ type RequestAddControllerRecord struct {
 	Content   string `json:"content"`
 }
 
-type ResponseAddControllerRecord bool
-
 type RequestDeleteControllerRecord struct {
 	JwtHeader
 	EchoContentHeader
 	TargetUid    uint `param:"uid"`
 	TargetRecord uint `param:"rid"`
 }
-
-type ResponseDeleteControllerRecord bool
 
 type RequestControllerRatingList struct {
 	Page     int `query:"page_number"`
@@ -117,9 +92,4 @@ type ControllerRating struct {
 	IsGuest      bool      `json:"is_guest"`
 }
 
-type ResponseControllerRatingList struct {
-	Items    []*ControllerRating `json:"items"`
-	Page     int                 `json:"page"`
-	PageSize int                 `json:"page_size"`
-	Total    int64               `json:"total"`
-}
+type ResponseControllerRatingList = *PageResponse[*ControllerRating]

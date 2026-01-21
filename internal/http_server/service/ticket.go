@@ -51,7 +51,7 @@ func (ticketService *TicketService) GetTickets(req *RequestGetTickets) *ApiRespo
 		return res
 	}
 
-	return NewApiResponse(SuccessGetTickets, &ResponseGetTickets{
+	return NewApiResponse(SuccessGetTickets, &PageResponse[*operation.Ticket]{
 		Items:    records,
 		Total:    total,
 		Page:     req.Page,
@@ -69,7 +69,7 @@ func (ticketService *TicketService) GetUserTickets(req *RequestGetUserTickets) *
 		return res
 	}
 
-	return NewApiResponse(SuccessGetUserTickets, &ResponseGetUserTickets{
+	return NewApiResponse(SuccessGetUserTickets, &PageResponse[*operation.UserTicket]{
 		Items:    records,
 		Total:    total,
 		Page:     req.Page,
@@ -77,16 +77,16 @@ func (ticketService *TicketService) GetUserTickets(req *RequestGetUserTickets) *
 	})
 }
 
-func (ticketService *TicketService) CreateTicket(req *RequestCreateTicket) *ApiResponse[ResponseCreateTicket] {
+func (ticketService *TicketService) CreateTicket(req *RequestCreateTicket) *ApiResponse[bool] {
 	if req.Title == "" || req.Content == "" || !operation.IsValidTicketType(req.Type) {
-		return NewApiResponse[ResponseCreateTicket](ErrIllegalParam, nil)
+		return NewApiResponse(ErrIllegalParam, false)
 	}
 
 	ticketType := operation.TicketType(req.Type)
 
 	ticket := ticketService.ticketOperation.NewTicket(req.Uid, ticketType, req.Title, req.Content)
 
-	if res := CallDBFuncWithoutRet[ResponseCreateTicket](func() error {
+	if res := CallDBFuncWithoutRet[bool](func() error {
 		return ticketService.ticketOperation.SaveTicket(ticket)
 	}); res != nil {
 		return res
@@ -108,27 +108,26 @@ func (ticketService *TicketService) CreateTicket(req *RequestCreateTicket) *ApiR
 		),
 	})
 
-	data := ResponseCreateTicket(true)
-	return NewApiResponse(SuccessCreateTicket, &data)
+	return NewApiResponse(SuccessCreateTicket, true)
 }
 
-func (ticketService *TicketService) CloseTicket(req *RequestCloseTicket) *ApiResponse[ResponseCloseTicket] {
+func (ticketService *TicketService) CloseTicket(req *RequestCloseTicket) *ApiResponse[bool] {
 	if req.TicketId <= 0 || req.Reply == "" {
-		return NewApiResponse[ResponseCloseTicket](ErrIllegalParam, nil)
+		return NewApiResponse(ErrIllegalParam, false)
 	}
 
-	if res := CheckPermission[ResponseCloseTicket](req.Permission, operation.TicketReply); res != nil {
+	if res := CheckPermission[bool](req.Permission, operation.TicketReply); res != nil {
 		return res
 	}
 
-	ticket, res := CallDBFunc[*operation.Ticket, ResponseCloseTicket](func() (*operation.Ticket, error) {
+	ticket, res := CallDBFunc[*operation.Ticket, bool](func() (*operation.Ticket, error) {
 		return ticketService.ticketOperation.GetTicket(req.TicketId)
 	})
 	if res != nil {
 		return res
 	}
 
-	if res := CallDBFuncWithoutRet[ResponseCloseTicket](func() error {
+	if res := CallDBFuncWithoutRet[bool](func() error {
 		return ticketService.ticketOperation.CloseTicket(ticket, req.Cid, req.Reply)
 	}); res != nil {
 		return res
@@ -158,20 +157,19 @@ func (ticketService *TicketService) CloseTicket(req *RequestCloseTicket) *ApiRes
 		},
 	})
 
-	data := ResponseCloseTicket(true)
-	return NewApiResponse(SuccessCloseTicket, &data)
+	return NewApiResponse(SuccessCloseTicket, true)
 }
 
-func (ticketService *TicketService) DeleteTicket(req *RequestDeleteTicket) *ApiResponse[ResponseDeleteTicket] {
+func (ticketService *TicketService) DeleteTicket(req *RequestDeleteTicket) *ApiResponse[bool] {
 	if req.TicketId <= 0 {
-		return NewApiResponse[ResponseDeleteTicket](ErrIllegalParam, nil)
+		return NewApiResponse(ErrIllegalParam, false)
 	}
 
-	if res := CheckPermission[ResponseDeleteTicket](req.Permission, operation.TicketRemove); res != nil {
+	if res := CheckPermission[bool](req.Permission, operation.TicketRemove); res != nil {
 		return res
 	}
 
-	if res := CallDBFuncWithoutRet[ResponseDeleteTicket](func() error {
+	if res := CallDBFuncWithoutRet[bool](func() error {
 		return ticketService.ticketOperation.DeleteTicket(req.TicketId)
 	}); res != nil {
 		return res
@@ -189,6 +187,5 @@ func (ticketService *TicketService) DeleteTicket(req *RequestDeleteTicket) *ApiR
 		),
 	})
 
-	data := ResponseDeleteTicket(true)
-	return NewApiResponse(SuccessDeleteTicket, &data)
+	return NewApiResponse(SuccessDeleteTicket, true)
 }

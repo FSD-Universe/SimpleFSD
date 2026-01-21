@@ -3,6 +3,7 @@ package service
 
 import (
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -16,12 +17,15 @@ type HttpCode int
 const (
 	Unsatisfied         HttpCode = 0
 	Ok                  HttpCode = 200
+	NoContent           HttpCode = 204
+	Found               HttpCode = 302
 	BadRequest          HttpCode = 400
 	Unauthorized        HttpCode = 401
 	PermissionDenied    HttpCode = 403
 	NotFound            HttpCode = 404
 	Conflict            HttpCode = 409
 	ServerInternalError HttpCode = 500
+	NotImplemented      HttpCode = 501
 )
 
 func (hc HttpCode) Code() int {
@@ -46,16 +50,25 @@ type ApiResponse[T any] struct {
 	HttpCode int    `json:"-"`
 	Code     string `json:"code"`
 	Message  string `json:"message"`
-	Data     *T     `json:"data"`
+	Data     T      `json:"data"`
 }
+
+type TokenType int
+
+const (
+	MainToken TokenType = 1 << iota
+	MainRefreshToken
+	OAuth2Token
+)
 
 type Claims struct {
 	Uid        uint   `json:"uid"`
-	Cid        int    `json:"cid"`
-	Username   string `json:"username"`
-	Permission uint64 `json:"permission"`
-	Rating     int    `json:"rating"`
-	FlushToken bool   `json:"flushToken"`
+	Cid        int    `json:"cid,omitempty"`
+	Username   string `json:"username,omitempty"`
+	Rating     int    `json:"rating,omitempty"`
+	TokenType  int    `json:"token_type"`
+	Scopes     string `json:"scopes,omitempty"`
+	Permission uint64 `json:"permission,omitempty"`
 	config     *config.JWTConfig
 	jwt.RegisteredClaims
 }
@@ -103,10 +116,15 @@ func (jwt *JwtHeader) SetPermission(permission uint64) { jwt.Permission = permis
 
 func (jwt *JwtHeader) SetRating(rating int) { jwt.Rating = rating }
 
-func NewClaims(config *config.JWTConfig, user *operation.User, flushToken bool) *Claims {
-	expiredDuration := config.ExpiresDuration
-	if flushToken {
-		expiredDuration += config.RefreshDuration
+func NewClaims(config *config.JWTConfig, user *operation.User, tokenType TokenType) *Claims {
+	var expiredDuration time.Duration
+	switch tokenType {
+	case MainToken:
+		expiredDuration = config.ExpiresDuration
+	case MainRefreshToken:
+		expiredDuration = config.ExpiresDuration + config.RefreshDuration
+	case OAuth2Token:
+		return nil
 	}
 	return &Claims{
 		Uid:        user.ID,
@@ -114,7 +132,7 @@ func NewClaims(config *config.JWTConfig, user *operation.User, flushToken bool) 
 		Username:   user.Username,
 		Permission: user.Permission,
 		Rating:     user.Rating,
-		FlushToken: flushToken,
+		TokenType:  int(tokenType),
 		config:     config,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    "FsdHttpServer",
@@ -122,6 +140,22 @@ func NewClaims(config *config.JWTConfig, user *operation.User, flushToken bool) 
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiredDuration)),
+		},
+	}
+}
+
+func NewOAuth2Claims(config *config.HttpServerConfig, userId uint, tokenType TokenType, scopes string) *Claims {
+	return &Claims{
+		Uid:       userId,
+		TokenType: int(tokenType),
+		Scopes:    scopes,
+		config:    config.JWT,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    "FsdHttpServer",
+			Subject:   strconv.Itoa(int(userId)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			NotBefore: jwt.NewNumericDate(time.Now()),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(config.OAuth2.AccessTokenExpireDuration)),
 		},
 	}
 }
@@ -141,13 +175,13 @@ func NewFsdClaims(config *config.JWTConfig, user *operation.User) *FsdClaims {
 	}
 }
 
-func (claim *Claims) GenerateKey() string {
+func (claim *Claims) GenerateToken() string {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS512, claim)
 	tokenString, _ := token.SignedString([]byte(claim.config.Secret))
 	return tokenString
 }
 
-func (claim *FsdClaims) GenerateKey() string {
+func (claim *FsdClaims) GenerateToken() string {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS512, claim)
 	tokenString, _ := token.SignedString([]byte(claim.config.Secret))
 	return tokenString
@@ -176,13 +210,18 @@ var (
 	ErrCopyRequest           = NewApiStatus("ERR_COPY_REQUEST", "复制目标请求", ServerInternalError)
 	ErrNotAvailable          = NewApiStatus("ERR_NOT_AVAILABLE", "航图服务不可用", ServerInternalError)
 	ErrTokenExpired          = NewApiStatus("TOKEN_EXPIRED", "令牌已过期，请联系管理员", Unauthorized)
+	ErrInvalidPageParam      = NewApiStatus("INVALID_PAGE_PARAM", "无效的分页参数", BadRequest)
 )
 
 func NewErrorResponse(ctx echo.Context, codeStatus *ApiStatus) error {
 	return NewApiResponse[any](codeStatus, nil).Response(ctx)
 }
 
-func NewApiResponse[T any](codeStatus *ApiStatus, data *T) *ApiResponse[T] {
+func NewJsonResponse(ctx echo.Context, code HttpCode, data any) error {
+	return ctx.JSON(code.Code(), data)
+}
+
+func NewApiResponse[T any](codeStatus *ApiStatus, data T) *ApiResponse[T] {
 	return &ApiResponse[T]{
 		HttpCode: codeStatus.HttpCode.Code(),
 		Code:     codeStatus.StatusName,
@@ -192,49 +231,51 @@ func NewApiResponse[T any](codeStatus *ApiStatus, data *T) *ApiResponse[T] {
 }
 
 func CheckDatabaseError[T any](err error) *ApiResponse[T] {
+	var zero T
 	switch {
 	case errors.Is(err, operation.ErrIdentifierCheck):
-		return NewApiResponse[T](ErrRegisterFail, nil)
+		return NewApiResponse[T](ErrRegisterFail, zero)
 	case errors.Is(err, operation.ErrIdentifierTaken):
-		return NewApiResponse[T](ErrIdentifierTaken, nil)
+		return NewApiResponse[T](ErrIdentifierTaken, zero)
 	case errors.Is(err, operation.ErrUserNotFound):
-		return NewApiResponse[T](ErrUserNotFound, nil)
+		return NewApiResponse[T](ErrUserNotFound, zero)
 	case errors.Is(err, operation.ErrActivityNotFound):
-		return NewApiResponse[T](ErrActivityNotFound, nil)
+		return NewApiResponse[T](ErrActivityNotFound, zero)
 	case errors.Is(err, operation.ErrFlightPlanNotFound):
-		return NewApiResponse[T](ErrFlightPlanNotFound, nil)
+		return NewApiResponse[T](ErrFlightPlanNotFound, zero)
 	case errors.Is(err, operation.ErrTicketNotFound):
-		return NewApiResponse[T](ErrTicketNotFound, nil)
+		return NewApiResponse[T](ErrTicketNotFound, zero)
 	case errors.Is(err, operation.ErrTicketAlreadyClosed):
-		return NewApiResponse[T](ErrTicketAlreadyClosed, nil)
+		return NewApiResponse[T](ErrTicketAlreadyClosed, zero)
 	case errors.Is(err, operation.ErrFacilityNotFound):
-		return NewApiResponse[T](ErrFacilityNotFound, nil)
+		return NewApiResponse[T](ErrFacilityNotFound, zero)
 	case errors.Is(err, operation.ErrActivityHasClosed):
-		return NewApiResponse[T](ErrActivityLocked, nil)
+		return NewApiResponse[T](ErrActivityLocked, zero)
 	case errors.Is(err, operation.ErrActivityIdMismatch):
-		return NewApiResponse[T](ErrActivityIdMismatch, nil)
+		return NewApiResponse[T](ErrActivityIdMismatch, zero)
 	case errors.Is(err, operation.ErrControllerRecordNotFound):
-		return NewApiResponse[T](ErrRecordNotFound, nil)
+		return NewApiResponse[T](ErrRecordNotFound, zero)
 	case errors.Is(err, operation.ErrApplicationNotFound):
-		return NewApiResponse[T](ErrApplicationNotFound, nil)
+		return NewApiResponse[T](ErrApplicationNotFound, zero)
 	case errors.Is(err, operation.ErrApplicationAlreadyExists):
-		return NewApiResponse[T](ErrApplicationAlreadyExists, nil)
+		return NewApiResponse[T](ErrApplicationAlreadyExists, zero)
 	case errors.Is(err, operation.ErrAnnouncementNotFound):
-		return NewApiResponse[T](ErrAnnouncementNotFound, nil)
+		return NewApiResponse[T](ErrAnnouncementNotFound, zero)
 	case err != nil:
-		return NewApiResponse[T](ErrDatabaseFail, nil)
+		return NewApiResponse[T](ErrDatabaseFail, zero)
 	default:
 		return nil
 	}
 }
 
 func CheckPermission[T any](permission uint64, perm operation.Permission) *ApiResponse[T] {
+	var zero T
 	if permission <= 0 {
-		return NewApiResponse[T](ErrNoPermission, nil)
+		return NewApiResponse[T](ErrNoPermission, zero)
 	}
 	userPermission := operation.Permission(permission)
 	if !userPermission.HasPermission(perm) {
-		return NewApiResponse[T](ErrNoPermission, nil)
+		return NewApiResponse[T](ErrNoPermission, zero)
 	}
 	return nil
 }

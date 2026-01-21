@@ -46,6 +46,10 @@ const (
 	AnnouncementPublish
 	AnnouncementEdit
 	AnnouncementDelete
+	OAuthClientShowList
+	OAuthClientCreate
+	OAuthClientEdit
+	OAuthClientDelete
 )
 
 var PermissionMap = map[string]Permission{
@@ -90,6 +94,10 @@ var PermissionMap = map[string]Permission{
 	"AnnouncementPublish":           AnnouncementPublish,
 	"AnnouncementEdit":              AnnouncementEdit,
 	"AnnouncementDelete":            AnnouncementDelete,
+	"OAuthClientShowList":           OAuthClientShowList,
+	"OAuthClientCreate":             OAuthClientCreate,
+	"OAuthClientEdit":               OAuthClientEdit,
+	"OAuthClientDelete":             OAuthClientDelete,
 }
 
 func (p *Permission) HasPermission(perm Permission) bool {

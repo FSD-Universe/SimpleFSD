@@ -12,6 +12,7 @@ type DatabaseOperations struct {
 	controllerApplicationOperation ControllerApplicationOperationInterface // 管制员申请操作
 	ticketOperation                TicketOperationInterface                // 工单操作
 	announcementOperation          AnnouncementOperationInterface          // 公告操作
+	oauth2Operation                OAuth2OperationInterface                // OAuth2操作
 }
 
 func NewDatabaseOperations(
@@ -25,6 +26,7 @@ func NewDatabaseOperations(
 	controllerApplicationOperation ControllerApplicationOperationInterface,
 	tickerOperation TicketOperationInterface,
 	announcementOperation AnnouncementOperationInterface,
+	oauth2Operation OAuth2OperationInterface,
 ) *DatabaseOperations {
 	return &DatabaseOperations{
 		userOperation:                  userOperation,
@@ -37,6 +39,7 @@ func NewDatabaseOperations(
 		controllerApplicationOperation: controllerApplicationOperation,
 		ticketOperation:                tickerOperation,
 		announcementOperation:          announcementOperation,
+		oauth2Operation:                oauth2Operation,
 	}
 }
 
@@ -76,4 +79,8 @@ func (db *DatabaseOperations) TicketOperation() TicketOperationInterface { retur
 
 func (db *DatabaseOperations) AnnouncementOperation() AnnouncementOperationInterface {
 	return db.announcementOperation
+}
+
+func (db *DatabaseOperations) OAuth2Operation() OAuth2OperationInterface {
+	return db.oauth2Operation
 }

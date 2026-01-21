@@ -52,7 +52,7 @@ func (auditLogService *AudioLogService) GetAuditLogPage(req *RequestGetAuditLog)
 		return res
 	}
 
-	return NewApiResponse(SuccessGetAuditLog, &ResponseGetAuditLog{
+	return NewApiResponse(SuccessGetAuditLog, &PageResponse[*operation.AuditLog]{
 		Items:    auditLogs,
 		Page:     req.Page,
 		PageSize: req.PageSize,
@@ -60,7 +60,7 @@ func (auditLogService *AudioLogService) GetAuditLogPage(req *RequestGetAuditLog)
 	})
 }
 
-func (auditLogService *AudioLogService) LogUnlawfulOverreach(req *RequestLogUnlawfulOverreach) *ApiResponse[ResponseLogUnlawfulOverreach] {
+func (auditLogService *AudioLogService) LogUnlawfulOverreach(req *RequestLogUnlawfulOverreach) *ApiResponse[bool] {
 	auditLog := auditLogService.auditOperation.NewAuditLog(
 		operation.UnlawfulOverreach,
 		req.Cid,
@@ -74,6 +74,5 @@ func (auditLogService *AudioLogService) LogUnlawfulOverreach(req *RequestLogUnla
 		auditLogService.logger.ErrorF("Fail to create audit log for unlawful_overreach, detail: %v", err)
 	}
 
-	data := ResponseLogUnlawfulOverreach(true)
-	return NewApiResponse(SuccessLogUnlawfulOverreach, &data)
+	return NewApiResponse(SuccessLogUnlawfulOverreach, true)
 }

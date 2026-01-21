@@ -68,21 +68,21 @@ func (userService *UserService) verifyEmailCode(email string, emailCode string, 
 	}
 }
 
-func (userService *UserService) UserRegister(req *RequestUserRegister) *ApiResponse[ResponseUserRegister] {
+func (userService *UserService) UserRegister(req *RequestUserRegister) *ApiResponse[bool] {
 	if req.Username == "" || req.Email == "" || req.Password == "" || req.Cid <= 0 || len(req.EmailCode) != 6 {
-		return NewApiResponse[ResponseUserRegister](ErrIllegalParam, nil)
+		return NewApiResponse(ErrIllegalParam, false)
 	}
 
 	if res := userService.verifyEmailCode(req.Email, req.EmailCode, req.Cid); res != nil {
-		return NewApiResponse[ResponseUserRegister](res, nil)
+		return NewApiResponse(res, false)
 	}
 
 	user, err := userService.userOperation.NewUser(req.Username, req.Email, req.Cid, req.Password)
-	if res := CheckDatabaseError[ResponseUserRegister](err); res != nil {
+	if res := CheckDatabaseError[bool](err); res != nil {
 		return res
 	}
 
-	if res := CallDBFuncWithoutRet[ResponseUserRegister](func() error {
+	if res := CallDBFuncWithoutRet[bool](func() error {
 		return userService.userOperation.AddUser(user)
 	}); res != nil {
 		return res
@@ -93,18 +93,17 @@ func (userService *UserService) UserRegister(req *RequestUserRegister) *ApiRespo
 		Data: req.Email,
 	})
 
-	data := ResponseUserRegister(true)
-	return NewApiResponse(SuccessRegister, &data)
+	return NewApiResponse(SuccessRegister, true)
 }
 
-func (userService *UserService) UserLogin(req *RequestUserLogin) *ApiResponse[ResponseUserLogin] {
+func (userService *UserService) UserLogin(req *RequestUserLogin) *ApiResponse[*ResponseUserLogin] {
 	if req.Username == "" || req.Password == "" {
-		return NewApiResponse[ResponseUserLogin](ErrIllegalParam, nil)
+		return NewApiResponse[*ResponseUserLogin](ErrIllegalParam, nil)
 	}
 
 	userId := operation.GetUserId(req.Username)
 
-	user, res := CallDBFunc[*operation.User, ResponseUserLogin](func() (*operation.User, error) {
+	user, res := CallDBFunc[*operation.User, *ResponseUserLogin](func() (*operation.User, error) {
 		return userId.GetUser(userService.userOperation)
 	})
 	if res != nil {
@@ -112,37 +111,33 @@ func (userService *UserService) UserLogin(req *RequestUserLogin) *ApiResponse[Re
 	}
 
 	if user.Rating <= fsd.Ban.Index() {
-		return NewApiResponse[ResponseUserLogin](ErrAccountSuspended, nil)
+		return NewApiResponse[*ResponseUserLogin](ErrAccountSuspended, nil)
 	}
 
 	if pass := userService.userOperation.VerifyUserPassword(user, req.Password); !pass {
-		return NewApiResponse[ResponseUserLogin](ErrWrongUsernameOrPassword, nil)
+		return NewApiResponse[*ResponseUserLogin](ErrWrongUsernameOrPassword, nil)
 	}
 
-	token := NewClaims(userService.config.JWT, user, false)
-	flushToken := NewClaims(userService.config.JWT, user, true)
+	token := NewClaims(userService.config.JWT, user, MainToken)
+	flushToken := NewClaims(userService.config.JWT, user, MainRefreshToken)
 	return NewApiResponse(SuccessLogin, &ResponseUserLogin{
 		User:       user,
-		Token:      token.GenerateKey(),
-		FlushToken: flushToken.GenerateKey(),
+		Token:      token.GenerateToken(),
+		FlushToken: flushToken.GenerateToken(),
 	})
 }
 
-func (userService *UserService) CheckAvailability(req *RequestUserAvailability) *ApiResponse[ResponseUserAvailability] {
+func (userService *UserService) CheckAvailability(req *RequestUserAvailability) *ApiResponse[bool] {
 	if req.Username == "" && req.Email == "" && req.Cid == "" {
-		return NewApiResponse[ResponseUserAvailability](ErrIllegalParam, nil)
+		return NewApiResponse(ErrIllegalParam, false)
 	}
 
 	exist, err := userService.userOperation.IsUserIdentifierTaken(nil, utils.StrToInt(req.Cid, 0), req.Username, req.Email)
-	if res := CheckDatabaseError[ResponseUserAvailability](err); res != nil {
+	if res := CheckDatabaseError[bool](err); res != nil {
 		return res
 	}
 
-	data := ResponseUserAvailability(!exist)
-	if exist {
-		return NewApiResponse(NameNotAvailability, &data)
-	}
-	return NewApiResponse(NameAvailability, &data)
+	return NewApiResponse(NameAvailability, exist)
 }
 
 func (userService *UserService) GetCurrentProfile(req *RequestUserCurrentProfile) *ApiResponse[ResponseUserCurrentProfile] {
@@ -157,8 +152,7 @@ func (userService *UserService) GetCurrentProfile(req *RequestUserCurrentProfile
 		return NewApiResponse[ResponseUserCurrentProfile](ErrAccountSuspended, nil)
 	}
 
-	data := ResponseUserCurrentProfile(user)
-	return NewApiResponse(SuccessGetCurrentProfile, &data)
+	return NewApiResponse(SuccessGetCurrentProfile, user)
 }
 
 func checkQQ(qq int) *ApiStatus {
@@ -258,27 +252,25 @@ func (userService *UserService) editUserProfile(req *RequestUserEditCurrentProfi
 	if err := userService.userOperation.UpdateUserInfo(user, updateInfo); err != nil {
 		if errors.Is(err, operation.ErrUserNotFound) {
 			return ErrUserNotFound, nil, ""
-		} else {
-			return ErrDatabaseFail, nil, ""
 		}
+		return ErrDatabaseFail, nil, ""
 	}
 
 	return nil, user, string(oldValue)
 }
 
-func (userService *UserService) EditCurrentProfile(req *RequestUserEditCurrentProfile) *ApiResponse[ResponseUserEditCurrentProfile] {
+func (userService *UserService) EditCurrentProfile(req *RequestUserEditCurrentProfile) *ApiResponse[bool] {
 	req.ID = req.JwtHeader.Uid
 	req.Cid = req.JwtHeader.Cid
 	err, _, _ := userService.editUserProfile(req, false, false)
 	if err != nil {
-		return NewApiResponse[ResponseUserEditCurrentProfile](err, nil)
+		return NewApiResponse(err, false)
 	}
 	userService.messageQueue.Publish(&queue.Message{
 		Type: queue.DeleteVerifyCode,
 		Data: req.Email,
 	})
-	data := ResponseUserEditCurrentProfile(true)
-	return NewApiResponse(SuccessEditCurrentProfile, &data)
+	return NewApiResponse(SuccessEditCurrentProfile, true)
 }
 
 func (userService *UserService) GetUserProfile(req *RequestUserProfile) *ApiResponse[ResponseUserProfile] {
@@ -297,29 +289,28 @@ func (userService *UserService) GetUserProfile(req *RequestUserProfile) *ApiResp
 		return res
 	}
 
-	data := ResponseUserProfile(user)
-	return NewApiResponse(SuccessGetProfile, &data)
+	return NewApiResponse(SuccessGetProfile, user)
 }
 
-func (userService *UserService) EditUserProfile(req *RequestUserEditProfile) *ApiResponse[ResponseUserEditProfile] {
+func (userService *UserService) EditUserProfile(req *RequestUserEditProfile) *ApiResponse[bool] {
 	if req.TargetUid <= 0 {
-		return NewApiResponse[ResponseUserEditProfile](ErrIllegalParam, nil)
+		return NewApiResponse(ErrIllegalParam, false)
 	}
 
-	if res := CheckPermission[ResponseUserEditProfile](req.Permission, operation.UserEditBaseInfo); res != nil {
+	if res := CheckPermission[bool](req.Permission, operation.UserEditBaseInfo); res != nil {
 		return res
 	}
 
 	permission := operation.Permission(req.Permission)
 
 	if req.NewPassword != "" && !permission.HasPermission(operation.UserSetPassword) {
-		return NewApiResponse[ResponseUserEditProfile](ErrNoPermission, nil)
+		return NewApiResponse(ErrNoPermission, false)
 	}
 
 	req.RequestUserEditCurrentProfile.ID = req.TargetUid
 	err, user, oldValue := userService.editUserProfile(&req.RequestUserEditCurrentProfile, true, true)
 	if err != nil {
-		return NewApiResponse[ResponseUserEditProfile](err, nil)
+		return NewApiResponse(err, false)
 	}
 
 	userService.messageQueue.Publish(&queue.Message{
@@ -347,8 +338,7 @@ func (userService *UserService) EditUserProfile(req *RequestUserEditProfile) *Ap
 		),
 	})
 
-	data := ResponseUserEditProfile(true)
-	return NewApiResponse(SuccessEditUserProfile, &data)
+	return NewApiResponse(SuccessEditUserProfile, true)
 }
 
 func (userService *UserService) GetUserList(req *RequestUserList) *ApiResponse[ResponseUserList] {
@@ -365,7 +355,7 @@ func (userService *UserService) GetUserList(req *RequestUserList) *ApiResponse[R
 		return res
 	}
 
-	return NewApiResponse(SuccessGetUsers, &ResponseUserList{
+	return NewApiResponse(SuccessGetUsers, &PageResponse[*operation.User]{
 		Items:    users,
 		Page:     req.Page,
 		PageSize: req.PageSize,
@@ -373,12 +363,12 @@ func (userService *UserService) GetUserList(req *RequestUserList) *ApiResponse[R
 	})
 }
 
-func (userService *UserService) EditUserPermission(req *RequestUserEditPermission) *ApiResponse[ResponseUserEditPermission] {
+func (userService *UserService) EditUserPermission(req *RequestUserEditPermission) *ApiResponse[bool] {
 	if req.TargetUid <= 0 || len(req.Permissions) == 0 {
-		return NewApiResponse[ResponseUserEditPermission](ErrIllegalParam, nil)
+		return NewApiResponse(ErrIllegalParam, false)
 	}
 
-	user, targetUser, res := GetTargetUserAndCheckPermissionFromDatabase[ResponseUserEditPermission](
+	user, targetUser, res := GetTargetUserAndCheckPermissionFromDatabase[bool](
 		userService.userOperation,
 		req.Uid,
 		req.TargetUid,
@@ -390,48 +380,33 @@ func (userService *UserService) EditUserPermission(req *RequestUserEditPermissio
 
 	permission := operation.Permission(user.Permission)
 	targetPermission := operation.Permission(targetUser.Permission)
-	auditLogs := make([]*operation.AuditLog, 0, len(req.Permissions))
 	permissions := make([]string, 0, len(req.Permissions))
+	revokePermissions := make([]string, 0, len(req.Permissions))
+	grantPermissions := make([]string, 0, len(req.Permissions))
 
 	for key, value := range req.Permissions {
 		if per, ok := operation.PermissionMap[key]; ok {
 			if !permission.HasPermission(per) {
-				return NewApiResponse[ResponseUserEditPermission](ErrNoPermission, nil)
+				return NewApiResponse(ErrNoPermission, false)
 			}
 			if value, ok := value.(bool); ok {
 				if value {
 					targetPermission.Grant(per)
-					auditLogs = append(auditLogs,
-						userService.auditLogOperation.NewAuditLog(
-							operation.UserPermissionGrant,
-							req.Cid,
-							fmt.Sprintf("%04d(%s)", targetUser.Cid, key),
-							req.Ip,
-							req.UserAgent,
-							nil,
-						))
+					grantPermissions = append(grantPermissions, key)
 				} else {
 					targetPermission.Revoke(per)
-					auditLogs = append(auditLogs,
-						userService.auditLogOperation.NewAuditLog(
-							operation.UserPermissionRevoke,
-							req.Cid,
-							fmt.Sprintf("%04d(%s)", targetUser.Cid, key),
-							req.Ip,
-							req.UserAgent,
-							nil,
-						))
+					revokePermissions = append(revokePermissions, key)
 				}
 				permissions = append(permissions, key)
 			} else {
-				return NewApiResponse[ResponseUserEditPermission](ErrIllegalParam, nil)
+				return NewApiResponse(ErrIllegalParam, false)
 			}
 		} else {
-			return NewApiResponse[ResponseUserEditPermission](ErrPermissionNodeNotExists, nil)
+			return NewApiResponse(ErrPermissionNodeNotExists, false)
 		}
 	}
 
-	if res := CallDBFuncWithoutRet[ResponseUserEditPermission](func() error {
+	if res := CallDBFuncWithoutRet[bool](func() error {
 		return userService.userOperation.UpdateUserPermission(targetUser, targetPermission)
 	}); res != nil {
 		return res
@@ -446,24 +421,50 @@ func (userService *UserService) EditUserPermission(req *RequestUserEditPermissio
 		},
 	})
 
-	userService.messageQueue.Publish(&queue.Message{
-		Type: queue.AuditLogs,
-		Data: auditLogs,
-	})
+	if len(grantPermissions) > 0 {
+		userService.messageQueue.Publish(&queue.Message{
+			Type: queue.AuditLog,
+			Data: userService.auditLogOperation.NewAuditLog(
+				operation.UserPermissionGrant,
+				req.JwtHeader.Cid,
+				fmt.Sprintf("%04d", targetUser.Cid),
+				req.Ip,
+				req.UserAgent,
+				&operation.ChangeDetail{
+					NewValue: strings.Join(grantPermissions, ","),
+				},
+			),
+		})
+	}
 
-	data := ResponseUserEditPermission(true)
-	return NewApiResponse(SuccessEditUserPermission, &data)
+	if len(revokePermissions) > 0 {
+		userService.messageQueue.Publish(&queue.Message{
+			Type: queue.AuditLog,
+			Data: userService.auditLogOperation.NewAuditLog(
+				operation.UserPermissionRevoke,
+				req.JwtHeader.Cid,
+				fmt.Sprintf("%04d", targetUser.Cid),
+				req.Ip,
+				req.UserAgent,
+				&operation.ChangeDetail{
+					OldValue: strings.Join(revokePermissions, ","),
+				},
+			),
+		})
+	}
+
+	return NewApiResponse(SuccessEditUserPermission, true)
 }
 
-func (userService *UserService) GetUserHistory(req *RequestGetUserHistory) *ApiResponse[ResponseGetUserHistory] {
-	user, res := CallDBFunc[*operation.User, ResponseGetUserHistory](func() (*operation.User, error) {
+func (userService *UserService) GetUserHistory(req *RequestGetUserHistory) *ApiResponse[*ResponseGetUserHistory] {
+	user, res := CallDBFunc[*operation.User, *ResponseGetUserHistory](func() (*operation.User, error) {
 		return userService.userOperation.GetUserByCid(req.Cid)
 	})
 	if res != nil {
 		return res
 	}
 
-	userHistory, res := CallDBFunc[*operation.UserHistory, ResponseGetUserHistory](func() (*operation.UserHistory, error) {
+	userHistory, res := CallDBFunc[*operation.UserHistory, *ResponseGetUserHistory](func() (*operation.UserHistory, error) {
 		return userService.historyOperation.GetUserHistory(req.Cid)
 	})
 	if res != nil {
@@ -477,12 +478,8 @@ func (userService *UserService) GetUserHistory(req *RequestGetUserHistory) *ApiR
 	})
 }
 
-func (userService *UserService) GetTokenWithFlushToken(req *RequestGetToken) *ApiResponse[ResponseGetToken] {
-	if !req.FlushToken {
-		return NewApiResponse[ResponseGetToken](ErrIllegalParam, nil)
-	}
-
-	user, res := CallDBFunc[*operation.User, ResponseGetToken](func() (*operation.User, error) {
+func (userService *UserService) GetTokenWithFlushToken(req *RequestGetToken) *ApiResponse[*ResponseGetToken] {
+	user, res := CallDBFunc[*operation.User, *ResponseGetToken](func() (*operation.User, error) {
 		return userService.userOperation.GetUserByUid(req.Uid)
 	})
 	if res != nil {
@@ -493,27 +490,27 @@ func (userService *UserService) GetTokenWithFlushToken(req *RequestGetToken) *Ap
 	if !req.FirstTime && req.ExpiresAt.Add(-2*userService.config.JWT.ExpiresDuration).After(time.Now()) {
 		flushToken = ""
 	} else {
-		flushToken = NewClaims(userService.config.JWT, user, true).GenerateKey()
+		flushToken = NewClaims(userService.config.JWT, user, MainRefreshToken).GenerateToken()
 	}
 
-	token := NewClaims(userService.config.JWT, user, false)
+	token := NewClaims(userService.config.JWT, user, MainToken)
 	return NewApiResponse(SuccessGetToken, &ResponseGetToken{
 		User:       user,
-		Token:      token.GenerateKey(),
+		Token:      token.GenerateToken(),
 		FlushToken: flushToken,
 	})
 }
 
-func (userService *UserService) ResetUserPassword(req *RequestResetUserPassword) *ApiResponse[ResponseResetUserPassword] {
+func (userService *UserService) ResetUserPassword(req *RequestResetUserPassword) *ApiResponse[bool] {
 	if req.Email == "" || len(req.EmailCode) != 6 || req.Password == "" {
-		return NewApiResponse[ResponseResetUserPassword](ErrIllegalParam, nil)
+		return NewApiResponse(ErrIllegalParam, false)
 	}
 
 	if val := userService.verifyEmailCode(req.Email, req.EmailCode, -1); val != nil {
-		return NewApiResponse[ResponseResetUserPassword](val, nil)
+		return NewApiResponse(val, false)
 	}
 
-	targetUser, res := CallDBFunc[*operation.User, ResponseResetUserPassword](func() (*operation.User, error) {
+	targetUser, res := CallDBFunc[*operation.User, bool](func() (*operation.User, error) {
 		return userService.userOperation.GetUserByEmail(req.Email)
 	})
 	if res != nil {
@@ -522,10 +519,10 @@ func (userService *UserService) ResetUserPassword(req *RequestResetUserPassword)
 
 	password, err := userService.userOperation.UpdateUserPassword(targetUser, "", req.Password, true)
 	if err != nil {
-		return NewApiResponse[ResponseResetUserPassword](ErrResetPasswordFail, nil)
+		return NewApiResponse(ErrResetPasswordFail, false)
 	}
 
-	if res := CallDBFuncWithoutRet[ResponseResetUserPassword](func() error {
+	if res := CallDBFuncWithoutRet[bool](func() error {
 		return userService.userOperation.UpdateUserInfo(targetUser, &operation.User{Password: string(password)})
 	}); res != nil {
 		return res
@@ -545,8 +542,7 @@ func (userService *UserService) ResetUserPassword(req *RequestResetUserPassword)
 		},
 	})
 
-	data := ResponseResetUserPassword(true)
-	return NewApiResponse(SuccessResetPassword, &data)
+	return NewApiResponse(SuccessResetPassword, true)
 }
 
 func (userService *UserService) UserFsdLogin(req *RequestFsdLogin) *ResponseFsdLogin {
@@ -567,7 +563,7 @@ func (userService *UserService) UserFsdLogin(req *RequestFsdLogin) *ResponseFsdL
 		return &ResponseFsdLogin{Success: false, ErrMsg: "Password is Incorrect"}
 	}
 
-	return &ResponseFsdLogin{Success: true, Token: NewFsdClaims(userService.config.JWT, user).GenerateKey()}
+	return &ResponseFsdLogin{Success: true, Token: NewFsdClaims(userService.config.JWT, user).GenerateToken()}
 }
 
 var (
@@ -579,9 +575,9 @@ func (userService *UserService) UserFsdToken(req *RequestFsdToken) *ApiResponse[
 		return userService.userOperation.GetUserByUid(req.Uid)
 	})
 	if res != nil {
-		return NewApiResponse[ResponseFsdToken](ErrUserNotFound, nil)
+		return NewApiResponse[ResponseFsdToken](ErrUserNotFound, "")
 	}
 
-	token := NewFsdClaims(userService.config.JWT, user).GenerateKey()
-	return NewApiResponse(SuccessGetFsdToken, &token)
+	token := NewFsdClaims(userService.config.JWT, user).GenerateToken()
+	return NewApiResponse(SuccessGetFsdToken, token)
 }

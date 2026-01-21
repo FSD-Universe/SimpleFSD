@@ -22,23 +22,23 @@ var (
 type ControllerApplicationServiceInterface interface {
 	GetSelfApplication(req *RequestGetSelfApplication) *ApiResponse[ResponseGetSelfApplication]
 	GetApplications(req *RequestGetApplications) *ApiResponse[ResponseGetApplications]
-	SubmitControllerApplication(req *RequestSubmitControllerApplication) *ApiResponse[ResponseSubmitControllerApplication]
-	CancelSelfApplication(req *RequestCancelSelfApplication) *ApiResponse[ResponseCancelSelfApplication]
-	UpdateApplicationStatus(req *RequestUpdateApplicationStatus) *ApiResponse[ResponseUpdateApplicationStatus]
+	SubmitControllerApplication(req *RequestSubmitControllerApplication) *ApiResponse[bool]
+	CancelSelfApplication(req *RequestCancelSelfApplication) *ApiResponse[bool]
+	UpdateApplicationStatus(req *RequestUpdateApplicationStatus) *ApiResponse[bool]
 }
 
 type RequestGetSelfApplication struct {
 	JwtHeader
 }
 
-type ResponseGetSelfApplication *operation.ControllerApplication
+type ResponseGetSelfApplication = *operation.ControllerApplication
 
 type RequestGetApplications struct {
 	JwtHeader
 	PageArguments
 }
 
-type ResponseGetApplications *PageResponse[*operation.ControllerApplication]
+type ResponseGetApplications = *PageResponse[*operation.ControllerApplication]
 
 type RequestSubmitControllerApplication struct {
 	JwtHeader
@@ -46,14 +46,10 @@ type RequestSubmitControllerApplication struct {
 	*operation.ControllerApplication
 }
 
-type ResponseSubmitControllerApplication bool
-
 type RequestCancelSelfApplication struct {
 	JwtHeader
 	EchoContentHeader
 }
-
-type ResponseCancelSelfApplication bool
 
 type RequestUpdateApplicationStatus struct {
 	JwtHeader
@@ -63,5 +59,3 @@ type RequestUpdateApplicationStatus struct {
 	AvailableTime []time.Time `json:"times"`
 	Message       string      `json:"message"`
 }
-
-type ResponseUpdateApplicationStatus bool

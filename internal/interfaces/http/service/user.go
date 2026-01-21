@@ -38,18 +38,18 @@ var (
 )
 
 type UserServiceInterface interface {
-	UserRegister(req *RequestUserRegister) *ApiResponse[ResponseUserRegister]
-	UserLogin(req *RequestUserLogin) *ApiResponse[ResponseUserLogin]
-	CheckAvailability(req *RequestUserAvailability) *ApiResponse[ResponseUserAvailability]
+	UserRegister(req *RequestUserRegister) *ApiResponse[bool]
+	UserLogin(req *RequestUserLogin) *ApiResponse[*ResponseUserLogin]
+	CheckAvailability(req *RequestUserAvailability) *ApiResponse[bool]
 	GetCurrentProfile(req *RequestUserCurrentProfile) *ApiResponse[ResponseUserCurrentProfile]
-	EditCurrentProfile(req *RequestUserEditCurrentProfile) *ApiResponse[ResponseUserEditCurrentProfile]
+	EditCurrentProfile(req *RequestUserEditCurrentProfile) *ApiResponse[bool]
 	GetUserProfile(req *RequestUserProfile) *ApiResponse[ResponseUserProfile]
-	EditUserProfile(req *RequestUserEditProfile) *ApiResponse[ResponseUserEditProfile]
+	EditUserProfile(req *RequestUserEditProfile) *ApiResponse[bool]
 	GetUserList(req *RequestUserList) *ApiResponse[ResponseUserList]
-	EditUserPermission(req *RequestUserEditPermission) *ApiResponse[ResponseUserEditPermission]
-	GetUserHistory(req *RequestGetUserHistory) *ApiResponse[ResponseGetUserHistory]
-	GetTokenWithFlushToken(req *RequestGetToken) *ApiResponse[ResponseGetToken]
-	ResetUserPassword(req *RequestResetUserPassword) *ApiResponse[ResponseResetUserPassword]
+	EditUserPermission(req *RequestUserEditPermission) *ApiResponse[bool]
+	GetUserHistory(req *RequestGetUserHistory) *ApiResponse[*ResponseGetUserHistory]
+	GetTokenWithFlushToken(req *RequestGetToken) *ApiResponse[*ResponseGetToken]
+	ResetUserPassword(req *RequestResetUserPassword) *ApiResponse[bool]
 	UserFsdLogin(req *RequestFsdLogin) *ResponseFsdLogin
 	UserFsdToken(req *RequestFsdToken) *ApiResponse[ResponseFsdToken]
 }
@@ -61,8 +61,6 @@ type RequestUserRegister struct {
 	Cid       int    `json:"cid"`
 	EmailCode string `json:"email_code"`
 }
-
-type ResponseUserRegister bool
 
 type RequestUserLogin struct {
 	Username string `json:"username"`
@@ -81,13 +79,11 @@ type RequestUserAvailability struct {
 	Cid      string `query:"cid"`
 }
 
-type ResponseUserAvailability bool
-
 type RequestUserCurrentProfile struct {
 	JwtHeader
 }
 
-type ResponseUserCurrentProfile *operation.User
+type ResponseUserCurrentProfile = *operation.User
 
 type RequestUserEditCurrentProfile struct {
 	JwtHeader
@@ -102,27 +98,19 @@ type RequestUserEditCurrentProfile struct {
 	NewPassword    string `json:"new_password"`
 }
 
-type ResponseUserEditCurrentProfile bool
-
 type RequestUserProfile struct {
 	JwtHeader
 	TargetUid uint `param:"uid"`
 }
 
-type ResponseUserProfile *operation.User
+type ResponseUserProfile = *operation.User
 
 type RequestUserList struct {
 	JwtHeader
-	Page     int `query:"page_number"`
-	PageSize int `query:"page_size"`
+	PageArguments
 }
 
-type ResponseUserList struct {
-	Items    []*operation.User `json:"items"`
-	Page     int               `json:"page"`
-	PageSize int               `json:"page_size"`
-	Total    int64             `json:"total"`
-}
+type ResponseUserList = *PageResponse[*operation.User]
 
 type RequestUserEditProfile struct {
 	JwtHeader
@@ -131,16 +119,12 @@ type RequestUserEditProfile struct {
 	RequestUserEditCurrentProfile
 }
 
-type ResponseUserEditProfile bool
-
 type RequestUserEditPermission struct {
 	JwtHeader
 	EchoContentHeader
 	TargetUid   uint     `param:"uid"`
 	Permissions echo.Map `json:"permissions"`
 }
-
-type ResponseUserEditPermission bool
 
 type RequestGetUserHistory struct {
 	JwtHeader
@@ -169,8 +153,6 @@ type RequestResetUserPassword struct {
 	EmailCode string `json:"email_code"`
 	Password  string `json:"password"`
 }
-
-type ResponseResetUserPassword bool
 
 type RequestFsdLogin struct {
 	Cid        string `json:"cid"`

@@ -60,7 +60,7 @@ func (controllerService *ControllerService) GetControllerList(req *RequestContro
 		return res
 	}
 
-	return NewApiResponse(SuccessGetControllers, &ResponseControllerList{
+	return NewApiResponse(SuccessGetControllers, &PageResponse[*operation.User]{
 		Items:    users,
 		Page:     req.Page,
 		PageSize: req.PageSize,
@@ -78,7 +78,7 @@ func (controllerService *ControllerService) GetCurrentControllerRecord(req *Requ
 		return res
 	}
 
-	return NewApiResponse(SuccessGetCurrentControllerRecord, &ResponseGetCurrentControllerRecord{
+	return NewApiResponse(SuccessGetCurrentControllerRecord, &PageResponse[*operation.ControllerRecord]{
 		Items:    records,
 		Total:    total,
 		Page:     req.Page,
@@ -100,7 +100,7 @@ func (controllerService *ControllerService) GetControllerRecord(req *RequestGetC
 		return res
 	}
 
-	return NewApiResponse(SuccessGetCurrentControllerRecord, &ResponseGetControllerRecord{
+	return NewApiResponse(SuccessGetCurrentControllerRecord, &PageResponse[*operation.ControllerRecord]{
 		Items:    records,
 		Total:    total,
 		Page:     req.Page,
@@ -132,7 +132,7 @@ func (controllerService *ControllerService) GetControllerRatings(req *RequestCon
 		})
 	}
 
-	return NewApiResponse(SuccessGetControllerRatings, &ResponseControllerRatingList{
+	return NewApiResponse(SuccessGetControllerRatings, &PageResponse[*ControllerRating]{
 		Items:    ratings,
 		Page:     req.Page,
 		PageSize: req.PageSize,
@@ -140,19 +140,19 @@ func (controllerService *ControllerService) GetControllerRatings(req *RequestCon
 	})
 }
 
-func (controllerService *ControllerService) UpdateControllerRating(req *RequestUpdateControllerRating) *ApiResponse[ResponseUpdateControllerRating] {
+func (controllerService *ControllerService) UpdateControllerRating(req *RequestUpdateControllerRating) *ApiResponse[bool] {
 	if req.TargetUid <= 0 || !fsd.IsValidRating(req.Rating) || (req.UnderSolo && (req.SoloUntil.IsZero() || req.SoloUntil.Before(time.Now()))) || (req.Guest && (req.UnderMonitor || req.UnderSolo)) {
-		return NewApiResponse[ResponseUpdateControllerRating](ErrIllegalParam, nil)
+		return NewApiResponse(ErrIllegalParam, false)
 	}
 
-	user, res := CallDBFunc[*operation.User, ResponseUpdateControllerRating](func() (*operation.User, error) {
+	user, res := CallDBFunc[*operation.User, bool](func() (*operation.User, error) {
 		return controllerService.userOperation.GetUserByUid(req.Uid)
 	})
 	if res != nil {
 		return res
 	}
 
-	targetUser, res := CallDBFunc[*operation.User, ResponseUpdateControllerRating](func() (*operation.User, error) {
+	targetUser, res := CallDBFunc[*operation.User, bool](func() (*operation.User, error) {
 		return controllerService.userOperation.GetUserByUid(req.TargetUid)
 	})
 	if res != nil {
@@ -162,35 +162,35 @@ func (controllerService *ControllerService) UpdateControllerRating(req *RequestU
 	updateInfo := make(map[string]interface{})
 
 	if targetUser.Rating != req.Rating {
-		if res := CheckPermission[ResponseUpdateControllerRating](user.Permission, operation.ControllerEditRating); res != nil {
+		if res := CheckPermission[bool](user.Permission, operation.ControllerEditRating); res != nil {
 			return res
 		}
 		updateInfo["rating"] = req.Rating
 	}
 
 	if targetUser.UnderMonitor != req.UnderMonitor {
-		if res := CheckPermission[ResponseUpdateControllerRating](user.Permission, operation.ControllerChangeUnderMonitor); res != nil {
+		if res := CheckPermission[bool](user.Permission, operation.ControllerChangeUnderMonitor); res != nil {
 			return res
 		}
 		updateInfo["under_monitor"] = req.UnderMonitor
 	}
 
 	if targetUser.Guest != req.Guest {
-		if res := CheckPermission[ResponseUpdateControllerRating](user.Permission, operation.ControllerChangeGuest); res != nil {
+		if res := CheckPermission[bool](user.Permission, operation.ControllerChangeGuest); res != nil {
 			return res
 		}
 		updateInfo["guest"] = req.Guest
 	}
 
 	if targetUser.Tier2 != req.Tier2 {
-		if res := CheckPermission[ResponseUpdateControllerRating](user.Permission, operation.ControllerTier2Rating); res != nil {
+		if res := CheckPermission[bool](user.Permission, operation.ControllerTier2Rating); res != nil {
 			return res
 		}
 		updateInfo["tier2"] = req.Tier2
 	}
 
 	if targetUser.UnderSolo != req.UnderSolo || (targetUser.UnderSolo && targetUser.SoloUntil.Equal(req.SoloUntil)) {
-		if res := CheckPermission[ResponseUpdateControllerRating](user.Permission, operation.ControllerChangeSolo); res != nil {
+		if res := CheckPermission[bool](user.Permission, operation.ControllerChangeSolo); res != nil {
 			return res
 		}
 		updateInfo["under_solo"] = req.UnderSolo
@@ -202,12 +202,12 @@ func (controllerService *ControllerService) UpdateControllerRating(req *RequestU
 	}
 
 	if len(updateInfo) == 0 {
-		return NewApiResponse[ResponseUpdateControllerRating](ErrSameRating, nil)
+		return NewApiResponse(ErrSameRating, false)
 	}
 
 	oldRatingStr := fsd.ToRatingString(targetUser.Rating, targetUser.Tier2, targetUser.UnderMonitor, targetUser.UnderSolo)
 
-	if res := CallDBFuncWithoutRet[ResponseUpdateControllerRating](func() error {
+	if res := CallDBFuncWithoutRet[bool](func() error {
 		return controllerService.controllerOperation.SetControllerRating(targetUser, updateInfo)
 	}); res != nil {
 		return res
@@ -240,20 +240,19 @@ func (controllerService *ControllerService) UpdateControllerRating(req *RequestU
 		),
 	})
 
-	data := ResponseUpdateControllerRating(true)
-	return NewApiResponse(SuccessUpdateControllerRating, &data)
+	return NewApiResponse(SuccessUpdateControllerRating, true)
 }
 
-func (controllerService *ControllerService) AddControllerRecord(req *RequestAddControllerRecord) *ApiResponse[ResponseAddControllerRecord] {
+func (controllerService *ControllerService) AddControllerRecord(req *RequestAddControllerRecord) *ApiResponse[bool] {
 	if req.TargetUid <= 0 || req.Content == "" || !operation.IsValidControllerRecordType(req.Type) {
-		return NewApiResponse[ResponseAddControllerRecord](ErrIllegalParam, nil)
+		return NewApiResponse(ErrIllegalParam, false)
 	}
 
-	if res := CheckPermission[ResponseAddControllerRecord](req.Permission, operation.ControllerCreateRecord); res != nil {
+	if res := CheckPermission[bool](req.Permission, operation.ControllerCreateRecord); res != nil {
 		return res
 	}
 
-	targetUser, res := CallDBFunc[*operation.User, ResponseAddControllerRecord](func() (*operation.User, error) {
+	targetUser, res := CallDBFunc[*operation.User, bool](func() (*operation.User, error) {
 		return controllerService.userOperation.GetUserByUid(req.TargetUid)
 	})
 	if res != nil {
@@ -264,7 +263,7 @@ func (controllerService *ControllerService) AddControllerRecord(req *RequestAddC
 
 	record := controllerService.controllerRecordOperation.NewControllerRecord(req.TargetUid, req.Cid, controllerRecordType, req.Content)
 
-	if res := CallDBFuncWithoutRet[ResponseAddControllerRecord](func() error {
+	if res := CallDBFuncWithoutRet[bool](func() error {
 		return controllerService.controllerRecordOperation.SaveControllerRecord(record)
 	}); res != nil {
 		return res
@@ -286,27 +285,26 @@ func (controllerService *ControllerService) AddControllerRecord(req *RequestAddC
 		),
 	})
 
-	data := ResponseAddControllerRecord(true)
-	return NewApiResponse(SuccessAddControllerRecord, &data)
+	return NewApiResponse(SuccessAddControllerRecord, true)
 }
 
-func (controllerService *ControllerService) DeleteControllerRecord(req *RequestDeleteControllerRecord) *ApiResponse[ResponseDeleteControllerRecord] {
+func (controllerService *ControllerService) DeleteControllerRecord(req *RequestDeleteControllerRecord) *ApiResponse[bool] {
 	if req.TargetRecord <= 0 {
-		return NewApiResponse[ResponseDeleteControllerRecord](ErrIllegalParam, nil)
+		return NewApiResponse(ErrIllegalParam, false)
 	}
 
-	if res := CheckPermission[ResponseDeleteControllerRecord](req.Permission, operation.ControllerDeleteRecord); res != nil {
+	if res := CheckPermission[bool](req.Permission, operation.ControllerDeleteRecord); res != nil {
 		return res
 	}
 
-	record, res := CallDBFunc[*operation.ControllerRecord, ResponseDeleteControllerRecord](func() (*operation.ControllerRecord, error) {
+	record, res := CallDBFunc[*operation.ControllerRecord, bool](func() (*operation.ControllerRecord, error) {
 		return controllerService.controllerRecordOperation.GetControllerRecord(req.TargetRecord, req.TargetUid)
 	})
 	if res != nil {
 		return res
 	}
 
-	if res := CallDBFuncWithoutRet[ResponseDeleteControllerRecord](func() error {
+	if res := CallDBFuncWithoutRet[bool](func() error {
 		return controllerService.controllerRecordOperation.DeleteControllerRecord(req.TargetRecord)
 	}); res != nil {
 		return res
@@ -328,6 +326,5 @@ func (controllerService *ControllerService) DeleteControllerRecord(req *RequestD
 		),
 	})
 
-	data := ResponseDeleteControllerRecord(true)
-	return NewApiResponse(SuccessDeleteControllerRecord, &data)
+	return NewApiResponse(SuccessDeleteControllerRecord, true)
 }

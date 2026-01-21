@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/half-nothing/simple-fsd/internal/interfaces/global"
 	"github.com/half-nothing/simple-fsd/internal/interfaces/log"
@@ -19,6 +20,15 @@ var (
 	ConfVersion, _ = newVersion(global.ConfigVersion)
 	AppVersion, _  = newVersion(global.AppVersion)
 )
+
+func parseDuration(val string, target *time.Duration) error {
+	duration, err := time.ParseDuration(val)
+	if err != nil {
+		return err
+	}
+	*target = duration
+	return nil
+}
 
 func createFileWithContent(filePath string, content []byte) error {
 	dir := filepath.Dir(filePath)

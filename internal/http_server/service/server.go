@@ -108,14 +108,14 @@ func (serverService *ServerService) getTimeRating() *ResponseGetTimeRating {
 	return data
 }
 
-func (serverService *ServerService) GetServerConfig() *ApiResponse[ResponseGetServerConfig] {
+func (serverService *ServerService) GetServerConfig() *ApiResponse[*ResponseGetServerConfig] {
 	return NewApiResponse(SuccessGetServerConfig, serverService.serverConfig.GetValue())
 }
 
-func (serverService *ServerService) GetServerInfo() *ApiResponse[ResponseGetServerInfo] {
+func (serverService *ServerService) GetServerInfo() *ApiResponse[*ResponseGetServerInfo] {
 	return NewApiResponse(SuccessGetServerInfo, serverService.serverInfo.GetValue())
 }
 
-func (serverService *ServerService) GetTimeRating() *ApiResponse[ResponseGetTimeRating] {
+func (serverService *ServerService) GetTimeRating() *ApiResponse[*ResponseGetTimeRating] {
 	return NewApiResponse(SuccessGetTimeRating, serverService.serverOnlineTime.GetValue())
 }

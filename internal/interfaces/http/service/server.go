@@ -12,9 +12,9 @@ var (
 )
 
 type ServerServiceInterface interface {
-	GetServerConfig() *ApiResponse[ResponseGetServerConfig]
-	GetServerInfo() *ApiResponse[ResponseGetServerInfo]
-	GetTimeRating() *ApiResponse[ResponseGetTimeRating]
+	GetServerConfig() *ApiResponse[*ResponseGetServerConfig]
+	GetServerInfo() *ApiResponse[*ResponseGetServerInfo]
+	GetTimeRating() *ApiResponse[*ResponseGetTimeRating]
 }
 
 type FileLimit struct {

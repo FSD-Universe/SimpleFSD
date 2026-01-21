@@ -14,7 +14,7 @@ var (
 
 type EmailServiceInterface interface {
 	VerifyEmailCode(email string, code string, cid int) error
-	SendEmailVerifyCode(req *RequestEmailVerifyCode) *ApiResponse[ResponseEmailVerifyCode]
+	SendEmailVerifyCode(req *RequestEmailVerifyCode) *ApiResponse[*ResponseEmailVerifyCode]
 }
 
 type RequestEmailVerifyCode struct {

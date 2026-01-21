@@ -101,19 +101,19 @@ func (store *TencentCosStoreService) DeleteFile(storeInfo *StoreInfo) error {
 	return nil
 }
 
-func (store *TencentCosStoreService) SaveUploadImage(req *RequestUploadImage) *ApiResponse[ResponseUploadImage] {
+func (store *TencentCosStoreService) SaveUploadImage(req *RequestUploadImage) *ApiResponse[*ResponseUploadImage] {
 	storeInfo, res := store.GetStoreInfo(IMAGES, store.config.FileLimit.ImageLimit, req.File)
 	if res != nil {
-		return NewApiResponse[ResponseUploadImage](res, nil)
+		return NewApiResponse[*ResponseUploadImage](res, nil)
 	}
 
 	if res := store.SaveFile(storeInfo, req.File); res != nil {
-		return NewApiResponse[ResponseUploadImage](res, nil)
+		return NewApiResponse[*ResponseUploadImage](res, nil)
 	}
 
 	accessUrl, err := url.JoinPath(store.endpoint.String(), storeInfo.RemotePath)
 	if err != nil {
-		return NewApiResponse[ResponseUploadImage](ErrFilePathFail, nil)
+		return NewApiResponse[*ResponseUploadImage](ErrFilePathFail, nil)
 	}
 
 	store.messageQueue.Publish(&queue.Message{
@@ -134,19 +134,19 @@ func (store *TencentCosStoreService) SaveUploadImage(req *RequestUploadImage) *A
 	})
 }
 
-func (store *TencentCosStoreService) SaveUploadFile(req *RequestUploadFile) *ApiResponse[ResponseUploadFile] {
+func (store *TencentCosStoreService) SaveUploadFile(req *RequestUploadFile) *ApiResponse[*ResponseUploadFile] {
 	storeInfo, res := store.GetStoreInfo(FILES, store.config.FileLimit.FileLimit, req.File)
 	if res != nil {
-		return NewApiResponse[ResponseUploadFile](res, nil)
+		return NewApiResponse[*ResponseUploadFile](res, nil)
 	}
 
 	if res := store.SaveFile(storeInfo, req.File); res != nil {
-		return NewApiResponse[ResponseUploadFile](res, nil)
+		return NewApiResponse[*ResponseUploadFile](res, nil)
 	}
 
 	accessUrl, err := url.JoinPath(store.endpoint.String(), storeInfo.RemotePath)
 	if err != nil {
-		return NewApiResponse[ResponseUploadFile](ErrFilePathFail, nil)
+		return NewApiResponse[*ResponseUploadFile](ErrFilePathFail, nil)
 	}
 
 	store.messageQueue.Publish(&queue.Message{

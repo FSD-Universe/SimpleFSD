@@ -17,9 +17,9 @@ var (
 type AnnouncementServiceInterface interface {
 	GetAnnouncements(req *RequestGetAnnouncements) *ApiResponse[ResponseGetAnnouncements]
 	GetDetailAnnouncements(req *RequestGetDetailAnnouncements) *ApiResponse[ResponseGetDetailAnnouncements]
-	PublishAnnouncement(req *RequestPublishAnnouncement) *ApiResponse[ResponsePublishAnnouncement]
-	EditAnnouncement(req *RequestEditAnnouncement) *ApiResponse[ResponseEditAnnouncement]
-	DeleteAnnouncement(req *RequestDeleteAnnouncement) *ApiResponse[ResponseDeleteAnnouncement]
+	PublishAnnouncement(req *RequestPublishAnnouncement) *ApiResponse[bool]
+	EditAnnouncement(req *RequestEditAnnouncement) *ApiResponse[bool]
+	DeleteAnnouncement(req *RequestDeleteAnnouncement) *ApiResponse[bool]
 }
 
 type RequestGetAnnouncements struct {
@@ -27,22 +27,20 @@ type RequestGetAnnouncements struct {
 	PageArguments
 }
 
-type ResponseGetAnnouncements *PageResponse[*operation.UserAnnouncement]
+type ResponseGetAnnouncements = *PageResponse[*operation.UserAnnouncement]
 
 type RequestGetDetailAnnouncements struct {
 	JwtHeader
 	PageArguments
 }
 
-type ResponseGetDetailAnnouncements *PageResponse[*operation.Announcement]
+type ResponseGetDetailAnnouncements = *PageResponse[*operation.Announcement]
 
 type RequestPublishAnnouncement struct {
 	JwtHeader
 	EchoContentHeader
 	*operation.Announcement
 }
-
-type ResponsePublishAnnouncement bool
 
 type RequestEditAnnouncement struct {
 	JwtHeader
@@ -51,12 +49,8 @@ type RequestEditAnnouncement struct {
 	*operation.Announcement
 }
 
-type ResponseEditAnnouncement bool
-
 type RequestDeleteAnnouncement struct {
 	JwtHeader
 	EchoContentHeader
 	AnnouncementId uint `param:"aid"`
 }
-
-type ResponseDeleteAnnouncement bool

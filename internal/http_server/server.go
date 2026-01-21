@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -178,12 +179,12 @@ func StartHttpServer(applicationContent *ApplicationContent) {
 
 	jwtMiddleware := echojwt.WithConfig(jwtConfig)
 
-	jwtVerifyMiddleWare := func(flushToken bool) echo.MiddlewareFunc {
+	jwtVerifyMiddleWare := func(tokenTypes ...service.TokenType) echo.MiddlewareFunc {
 		return func(next echo.HandlerFunc) echo.HandlerFunc {
 			return func(ctx echo.Context) error {
 				token := ctx.Get("user").(*jwt.Token)
 				claim := token.Claims.(*service.Claims)
-				if flushToken == claim.FlushToken {
+				if slices.Contains(tokenTypes, service.TokenType(claim.TokenType)) {
 					return next(ctx)
 				}
 				return service.NewApiResponse[any](service.ErrInvalidJwtType, nil).Response(ctx)
@@ -191,8 +192,10 @@ func StartHttpServer(applicationContent *ApplicationContent) {
 		}
 	}
 
-	requireNoFlushToken := jwtVerifyMiddleWare(false)
-	requireFlushToken := jwtVerifyMiddleWare(true)
+	requireMainToken := jwtVerifyMiddleWare(service.MainToken)
+	requireMainRefreshToken := jwtVerifyMiddleWare(service.MainRefreshToken)
+	requireMainTokenOrOAuthToken := jwtVerifyMiddleWare(service.MainToken, service.OAuth2Token)
+	requireOAuthToken := jwtVerifyMiddleWare(service.OAuth2Token)
 
 	logger.Info("Service initializing...")
 
@@ -206,6 +209,7 @@ func StartHttpServer(applicationContent *ApplicationContent) {
 	ticketOperation := applicationContent.Operations().TicketOperation()
 	flightPlanOperation := applicationContent.Operations().FlightPlanOperation()
 	announcementOperation := applicationContent.Operations().AnnouncementOperation()
+	oauth2Operation := applicationContent.Operations().OAuth2Operation()
 	metarManager := applicationContent.MetarManager()
 
 	auditLogService := impl.NewAuditService(logger, auditLogOperation)
@@ -240,6 +244,7 @@ func StartHttpServer(applicationContent *ApplicationContent) {
 	ticketService := impl.NewTicketService(logger, messageQueue, userOperation, ticketOperation, auditLogOperation)
 	flightPlanService := impl.NewFlightPlanService(logger, messageQueue, userOperation, flightPlanOperation, auditLogOperation)
 	announcementService := impl.NewAnnouncementService(logger, messageQueue, announcementOperation, auditLogOperation)
+	oauth2Service := impl.NewOAuth2Service(logger, httpConfig, messageQueue, oauth2Operation, userOperation, auditLogOperation)
 	metarService := impl.NewMetarService(logger, metarManager)
 
 	logger.Info("Controller initializing...")
@@ -256,6 +261,7 @@ func StartHttpServer(applicationContent *ApplicationContent) {
 	ticketController := controller.NewTicketController(logger, ticketService)
 	flightPlanController := controller.NewFlightPlanController(logger, flightPlanService)
 	announcementController := controller.NewAnnouncementController(logger, announcementService)
+	oauth2Controller := controller.NewOAuth2Controller(logger, httpConfig.OAuth2, oauth2Service)
 	metarServiceController := controller.NewMetarServiceController(logger, metarService)
 
 	logger.Info("Applying router...")
@@ -276,93 +282,114 @@ func StartHttpServer(applicationContent *ApplicationContent) {
 
 	userGroup := apiGroup.Group("/users")
 	userGroup.POST("", userController.UserRegister)
-	userGroup.GET("", userController.GetUsers, jwtMiddleware, requireNoFlushToken)
+	userGroup.GET("", userController.GetUsers, jwtMiddleware, requireMainToken)
 	userGroup.POST("/sessions", userController.UserLogin)
 	userGroup.POST("/sessions/fsd", userController.UserFsdLogin)
-	userGroup.GET("/sessions/fsd", userController.UserFsdToken, jwtMiddleware, requireNoFlushToken)
-	userGroup.GET("/sessions", userController.GetToken, jwtMiddleware, requireFlushToken)
+	userGroup.GET("/sessions/fsd", userController.UserFsdToken, jwtMiddleware, requireMainToken)
+	userGroup.GET("/sessions", userController.GetToken, jwtMiddleware, requireMainRefreshToken)
 	userGroup.GET("/availability", userController.CheckUserAvailability)
-	userGroup.GET("/histories/self", userController.GetUserHistory, jwtMiddleware, requireNoFlushToken)
-	userGroup.GET("/profiles/self", userController.GetCurrentUserProfile, jwtMiddleware, requireNoFlushToken)
-	userGroup.PATCH("/profiles/self", userController.EditCurrentProfile, jwtMiddleware, requireNoFlushToken)
-	userGroup.GET("/profiles/:uid", userController.GetUserProfile, jwtMiddleware, requireNoFlushToken)
-	userGroup.PATCH("/profiles/:uid", userController.EditProfile, jwtMiddleware, requireNoFlushToken)
-	userGroup.PATCH("/profiles/:uid/permission", userController.EditUserPermission, jwtMiddleware, requireNoFlushToken)
+	userGroup.GET("/histories/self", userController.GetUserHistory, jwtMiddleware, requireMainToken)
+	userGroup.GET("/profiles/self", userController.GetCurrentUserProfile, jwtMiddleware, requireMainTokenOrOAuthToken)
+	userGroup.PATCH("/profiles/self", userController.EditCurrentProfile, jwtMiddleware, requireMainToken)
+	userGroup.GET("/profiles/:uid", userController.GetUserProfile, jwtMiddleware, requireMainToken)
+	userGroup.PATCH("/profiles/:uid", userController.EditProfile, jwtMiddleware, requireMainToken)
+	userGroup.PATCH("/profiles/:uid/permission", userController.EditUserPermission, jwtMiddleware, requireMainToken)
 	userGroup.POST("/password", userController.ResetUserPassword)
 
 	controllerGroup := apiGroup.Group("/controllers")
-	controllerGroup.GET("", controllerController.GetControllers, jwtMiddleware, requireNoFlushToken)
+	controllerGroup.GET("", controllerController.GetControllers, jwtMiddleware, requireMainToken)
 	controllerGroup.GET("/ratings", controllerController.GetControllerRatings)
-	controllerGroup.GET("/records/self", controllerController.GetCurrentControllerRecord, jwtMiddleware, requireNoFlushToken)
-	controllerGroup.GET("/records/:uid", controllerController.GetControllerRecord, jwtMiddleware, requireNoFlushToken)
-	controllerGroup.POST("/records/:uid", controllerController.AddControllerRecord, jwtMiddleware, requireNoFlushToken)
-	controllerGroup.DELETE("/records/:uid/:rid", controllerController.DeleteControllerRecord, jwtMiddleware, requireNoFlushToken)
-	controllerGroup.PUT("/:uid/rating", controllerController.UpdateControllerRating, jwtMiddleware, requireNoFlushToken)
+	controllerGroup.GET("/records/self", controllerController.GetCurrentControllerRecord, jwtMiddleware, requireMainToken)
+	controllerGroup.GET("/records/:uid", controllerController.GetControllerRecord, jwtMiddleware, requireMainToken)
+	controllerGroup.POST("/records/:uid", controllerController.AddControllerRecord, jwtMiddleware, requireMainToken)
+	controllerGroup.DELETE("/records/:uid/:rid", controllerController.DeleteControllerRecord, jwtMiddleware, requireMainToken)
+	controllerGroup.PUT("/:uid/rating", controllerController.UpdateControllerRating, jwtMiddleware, requireMainToken)
 
 	applicationGroup := controllerGroup.Group("/applications")
-	applicationGroup.GET("", controllerApplicationController.GetApplications, jwtMiddleware, requireNoFlushToken)
-	applicationGroup.GET("/self", controllerApplicationController.GetSelfApplication, jwtMiddleware, requireNoFlushToken)
-	applicationGroup.POST("", controllerApplicationController.SubmitApplication, jwtMiddleware, requireNoFlushToken)
-	applicationGroup.PUT("/:aid", controllerApplicationController.UpdateApplication, jwtMiddleware, requireNoFlushToken)
-	applicationGroup.DELETE("/self", controllerApplicationController.CancelSelfApplication, jwtMiddleware, requireNoFlushToken)
+	applicationGroup.GET("", controllerApplicationController.GetApplications, jwtMiddleware, requireMainToken)
+	applicationGroup.GET("/self", controllerApplicationController.GetSelfApplication, jwtMiddleware, requireMainToken)
+	applicationGroup.POST("", controllerApplicationController.SubmitApplication, jwtMiddleware, requireMainToken)
+	applicationGroup.PUT("/:aid", controllerApplicationController.UpdateApplication, jwtMiddleware, requireMainToken)
+	applicationGroup.DELETE("/self", controllerApplicationController.CancelSelfApplication, jwtMiddleware, requireMainToken)
 
 	clientGroup := apiGroup.Group("/clients")
 	clientGroup.GET("", clientController.GetOnlineClients)
 	clientGroup.GET("/status", func(c echo.Context) error { return c.String(http.StatusOK, whazzupContent) })
-	clientGroup.GET("/paths/:callsign", clientController.GetClientPath, jwtMiddleware, requireNoFlushToken)
-	clientGroup.POST("/messages", clientController.BroadcastMessage, jwtMiddleware, requireNoFlushToken)
-	clientGroup.POST("/messages/:callsign", clientController.SendMessageToClient, jwtMiddleware, requireNoFlushToken)
-	clientGroup.DELETE("/:callsign", clientController.KillClient, jwtMiddleware, requireNoFlushToken)
+	clientGroup.GET("/paths/:callsign", clientController.GetClientPath, jwtMiddleware, requireMainToken)
+	clientGroup.POST("/messages", clientController.BroadcastMessage, jwtMiddleware, requireMainToken)
+	clientGroup.POST("/messages/:callsign", clientController.SendMessageToClient, jwtMiddleware, requireMainToken)
+	clientGroup.DELETE("/:callsign", clientController.KillClient, jwtMiddleware, requireMainToken)
 
 	serverGroup := apiGroup.Group("/server")
 	serverGroup.GET("/config", serverController.GetServerConfig)
-	serverGroup.GET("/info", serverController.GetServerInfo, jwtMiddleware, requireNoFlushToken)
-	serverGroup.GET("/rating", serverController.GetServerOnlineTime, jwtMiddleware, requireNoFlushToken)
+	serverGroup.GET("/info", serverController.GetServerInfo, jwtMiddleware, requireMainToken)
+	serverGroup.GET("/rating", serverController.GetServerOnlineTime, jwtMiddleware, requireMainToken)
 
 	activityGroup := apiGroup.Group("/activities")
-	activityGroup.GET("", activityController.GetActivities, jwtMiddleware, requireNoFlushToken)
-	activityGroup.GET("/pages", activityController.GetActivitiesPage, jwtMiddleware, requireNoFlushToken)
-	activityGroup.GET("/:activity_id", activityController.GetActivityInfo, jwtMiddleware, requireNoFlushToken)
-	activityGroup.POST("", activityController.AddActivity, jwtMiddleware, requireNoFlushToken)
-	activityGroup.DELETE("/:activity_id", activityController.DeleteActivity, jwtMiddleware, requireNoFlushToken)
-	activityGroup.POST("/:activity_id/controllers/:facility_id", activityController.ControllerJoin, jwtMiddleware, requireNoFlushToken)
-	activityGroup.DELETE("/:activity_id/controllers/:facility_id", activityController.ControllerLeave, jwtMiddleware, requireNoFlushToken)
-	activityGroup.POST("/:activity_id/pilots", activityController.PilotJoin, jwtMiddleware, requireNoFlushToken)
-	activityGroup.DELETE("/:activity_id/pilots", activityController.PilotLeave, jwtMiddleware, requireNoFlushToken)
-	activityGroup.PUT("/:activity_id/status", activityController.EditActivityStatus, jwtMiddleware, requireNoFlushToken)
-	activityGroup.PUT("/:activity_id/pilots/:user_id/status", activityController.EditPilotStatus, jwtMiddleware, requireNoFlushToken)
-	activityGroup.PUT("/:activity_id", activityController.EditActivity, jwtMiddleware, requireNoFlushToken)
+	activityGroup.GET("", activityController.GetActivities, jwtMiddleware, requireMainToken)
+	activityGroup.GET("/pages", activityController.GetActivitiesPage, jwtMiddleware, requireMainToken)
+	activityGroup.GET("/:activity_id", activityController.GetActivityInfo, jwtMiddleware, requireMainToken)
+	activityGroup.POST("", activityController.AddActivity, jwtMiddleware, requireMainToken)
+	activityGroup.DELETE("/:activity_id", activityController.DeleteActivity, jwtMiddleware, requireMainToken)
+	activityGroup.POST("/:activity_id/controllers/:facility_id", activityController.ControllerJoin, jwtMiddleware, requireMainToken)
+	activityGroup.DELETE("/:activity_id/controllers/:facility_id", activityController.ControllerLeave, jwtMiddleware, requireMainToken)
+	activityGroup.POST("/:activity_id/pilots", activityController.PilotJoin, jwtMiddleware, requireMainToken)
+	activityGroup.DELETE("/:activity_id/pilots", activityController.PilotLeave, jwtMiddleware, requireMainToken)
+	activityGroup.PUT("/:activity_id/status", activityController.EditActivityStatus, jwtMiddleware, requireMainToken)
+	activityGroup.PUT("/:activity_id/pilots/:user_id/status", activityController.EditPilotStatus, jwtMiddleware, requireMainToken)
+	activityGroup.PUT("/:activity_id", activityController.EditActivity, jwtMiddleware, requireMainToken)
 
 	ticketGroup := apiGroup.Group("/tickets")
-	ticketGroup.GET("", ticketController.GetTickets, jwtMiddleware, requireNoFlushToken)
-	ticketGroup.GET("/self", ticketController.GetUserTickets, jwtMiddleware, requireNoFlushToken)
-	ticketGroup.POST("", ticketController.CreateTicket, jwtMiddleware, requireNoFlushToken)
-	ticketGroup.PUT("/:tid", ticketController.CloseTicket, jwtMiddleware, requireNoFlushToken)
-	ticketGroup.DELETE("/:tid", ticketController.DeleteTicket, jwtMiddleware, requireNoFlushToken)
+	ticketGroup.GET("", ticketController.GetTickets, jwtMiddleware, requireMainToken)
+	ticketGroup.GET("/self", ticketController.GetUserTickets, jwtMiddleware, requireMainToken)
+	ticketGroup.POST("", ticketController.CreateTicket, jwtMiddleware, requireMainToken)
+	ticketGroup.PUT("/:tid", ticketController.CloseTicket, jwtMiddleware, requireMainToken)
+	ticketGroup.DELETE("/:tid", ticketController.DeleteTicket, jwtMiddleware, requireMainToken)
 
 	flightPlanGroup := apiGroup.Group("/plans")
-	flightPlanGroup.POST("", flightPlanController.SubmitFlightPlan, jwtMiddleware, requireNoFlushToken)
-	flightPlanGroup.GET("", flightPlanController.GetFlightPlans, jwtMiddleware, requireNoFlushToken)
-	flightPlanGroup.GET("/self", flightPlanController.GetFlightPlan, jwtMiddleware, requireNoFlushToken)
-	flightPlanGroup.DELETE("/self", flightPlanController.DeleteSelfFlightPlan, jwtMiddleware, requireNoFlushToken)
-	flightPlanGroup.PUT("/:cid/lock", flightPlanController.LockFlightPlan, jwtMiddleware, requireNoFlushToken)
-	flightPlanGroup.DELETE("/:cid/lock", flightPlanController.UnlockFlightPlan, jwtMiddleware, requireNoFlushToken)
-	flightPlanGroup.DELETE("/:cid", flightPlanController.DeleteFlightPlan, jwtMiddleware, requireNoFlushToken)
+	flightPlanGroup.POST("", flightPlanController.SubmitFlightPlan, jwtMiddleware, requireMainToken)
+	flightPlanGroup.GET("", flightPlanController.GetFlightPlans, jwtMiddleware, requireMainToken)
+	flightPlanGroup.GET("/self", flightPlanController.GetFlightPlan, jwtMiddleware, requireMainToken)
+	flightPlanGroup.DELETE("/self", flightPlanController.DeleteSelfFlightPlan, jwtMiddleware, requireMainToken)
+	flightPlanGroup.PUT("/:cid/lock", flightPlanController.LockFlightPlan, jwtMiddleware, requireMainToken)
+	flightPlanGroup.DELETE("/:cid/lock", flightPlanController.UnlockFlightPlan, jwtMiddleware, requireMainToken)
+	flightPlanGroup.DELETE("/:cid", flightPlanController.DeleteFlightPlan, jwtMiddleware, requireMainToken)
 
 	announcementGroup := apiGroup.Group("/announcements")
-	announcementGroup.GET("", announcementController.GetAnnouncements, jwtMiddleware, requireNoFlushToken)
-	announcementGroup.GET("/detail", announcementController.GetDetailAnnouncements, jwtMiddleware, requireNoFlushToken)
-	announcementGroup.POST("", announcementController.CreateAnnouncement, jwtMiddleware, requireNoFlushToken)
-	announcementGroup.PUT("/:aid", announcementController.UpdateAnnouncement, jwtMiddleware, requireNoFlushToken)
-	announcementGroup.DELETE("/:aid", announcementController.DeleteAnnouncement, jwtMiddleware, requireNoFlushToken)
+	announcementGroup.GET("", announcementController.GetAnnouncements, jwtMiddleware, requireMainToken)
+	announcementGroup.GET("/detail", announcementController.GetDetailAnnouncements, jwtMiddleware, requireMainToken)
+	announcementGroup.POST("", announcementController.CreateAnnouncement, jwtMiddleware, requireMainToken)
+	announcementGroup.PUT("/:aid", announcementController.UpdateAnnouncement, jwtMiddleware, requireMainToken)
+	announcementGroup.DELETE("/:aid", announcementController.DeleteAnnouncement, jwtMiddleware, requireMainToken)
 
 	fileGroup := apiGroup.Group("/files")
-	fileGroup.POST("/images", fileController.UploadImage, jwtMiddleware, requireNoFlushToken)
-	fileGroup.POST("/files", fileController.UploadFile, jwtMiddleware, requireNoFlushToken)
+	fileGroup.POST("/images", fileController.UploadImage, jwtMiddleware, requireMainToken)
+	fileGroup.POST("/files", fileController.UploadFile, jwtMiddleware, requireMainToken)
 
 	auditLogGroup := apiGroup.Group("/audits")
-	auditLogGroup.GET("", auditLogController.GetAuditLogs, jwtMiddleware, requireNoFlushToken)
-	auditLogGroup.POST("/unlawful_overreach", auditLogController.LogUnlawfulOverreach, jwtMiddleware, requireNoFlushToken)
+	auditLogGroup.GET("", auditLogController.GetAuditLogs, jwtMiddleware, requireMainToken)
+	auditLogGroup.POST("/unlawful_overreach", auditLogController.LogUnlawfulOverreach, jwtMiddleware, requireMainToken)
+
+	// OAuth2路由
+	oauth2Group := apiGroup.Group("/oauth")
+	if httpConfig.OAuth2.Enabled {
+		oauth2Group.POST("/clients", oauth2Controller.CreateClient, jwtMiddleware, requireMainToken)
+		oauth2Group.GET("/clients", oauth2Controller.GetClientPage, jwtMiddleware, requireMainToken)
+		oauth2Group.PATCH("/clients/:client_id", oauth2Controller.UpdateClient, jwtMiddleware, requireMainToken)
+		oauth2Group.DELETE("/clients/:client_id", oauth2Controller.DeleteClient, jwtMiddleware, requireMainToken)
+
+		oauth2Group.PUT("/authorization/:id", oauth2Controller.Authorization, jwtMiddleware, requireMainToken)
+		oauth2Group.GET("/authorize", oauth2Controller.Authorize)
+		oauth2Group.POST("/token", oauth2Controller.Token)
+		oauth2Group.POST("/revoke", oauth2Controller.Revoke, jwtMiddleware, requireOAuthToken)
+	} else {
+		oauth2Group.Any("/*", func(c echo.Context) error {
+			return service.NewJsonResponse(c, service.NotImplemented, &service.OAuth2ErrorResponse{
+				ErrorCode:        service.OAuth2ErrTemporarilyUnavailable.ErrorCode,
+				ErrorDescription: "OAuth2 is not available on this server",
+			})
+		})
+	}
 
 	chartGroup := apiGroup.Group("/charts")
 
@@ -376,7 +403,7 @@ func StartHttpServer(applicationContent *ApplicationContent) {
 			_ = applicationContent.ConfigManager().SaveConfig()
 		})
 
-		chartGroup.Any("/*", tokenManager.HandleProxy, jwtMiddleware, requireNoFlushToken)
+		chartGroup.Any("/*", tokenManager.HandleProxy, jwtMiddleware, requireMainToken)
 	}
 
 	apiGroup.Use(middleware.Static(httpConfig.Store.LocalStorePath))

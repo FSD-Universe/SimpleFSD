@@ -42,13 +42,12 @@ func (service *AnnouncementService) GetAnnouncements(req *RequestGetAnnouncement
 		return res
 	}
 
-	data := ResponseGetAnnouncements(&PageResponse[*operation.UserAnnouncement]{
+	return NewApiResponse(SuccessGetAnnouncements, &PageResponse[*operation.UserAnnouncement]{
 		Items:    announcements,
 		Page:     req.Page,
 		PageSize: req.PageSize,
 		Total:    total,
 	})
-	return NewApiResponse(SuccessGetAnnouncements, &data)
 }
 
 func (service *AnnouncementService) GetDetailAnnouncements(req *RequestGetDetailAnnouncements) *ApiResponse[ResponseGetDetailAnnouncements] {
@@ -65,28 +64,27 @@ func (service *AnnouncementService) GetDetailAnnouncements(req *RequestGetDetail
 		return res
 	}
 
-	data := ResponseGetDetailAnnouncements(&PageResponse[*operation.Announcement]{
+	return NewApiResponse(SuccessGetDetailAnnouncements, &PageResponse[*operation.Announcement]{
 		Items:    announcements,
 		Page:     req.Page,
 		PageSize: req.PageSize,
 		Total:    total,
 	})
-	return NewApiResponse(SuccessGetDetailAnnouncements, &data)
 }
 
-func (service *AnnouncementService) PublishAnnouncement(req *RequestPublishAnnouncement) *ApiResponse[ResponsePublishAnnouncement] {
+func (service *AnnouncementService) PublishAnnouncement(req *RequestPublishAnnouncement) *ApiResponse[bool] {
 	if req.Announcement == nil || !operation.IsValidAnnouncementType(req.Announcement.Type) || req.Announcement.Content == "" {
-		return NewApiResponse[ResponsePublishAnnouncement](ErrIllegalParam, nil)
+		return NewApiResponse(ErrIllegalParam, false)
 	}
 
-	if res := CheckPermission[ResponsePublishAnnouncement](req.Permission, operation.AnnouncementPublish); res != nil {
+	if res := CheckPermission[bool](req.Permission, operation.AnnouncementPublish); res != nil {
 		return res
 	}
 
 	req.Announcement.ID = 0
 	req.Announcement.PublisherId = req.Uid
 
-	if res := CallDBFuncWithoutRet[ResponsePublishAnnouncement](func() error {
+	if res := CallDBFuncWithoutRet[bool](func() error {
 		return service.announcementOperation.SaveAnnouncement(req.Announcement)
 	}); res != nil {
 		return res
@@ -108,20 +106,19 @@ func (service *AnnouncementService) PublishAnnouncement(req *RequestPublishAnnou
 		),
 	})
 
-	data := ResponsePublishAnnouncement(true)
-	return NewApiResponse(SuccessPublishAnnouncement, &data)
+	return NewApiResponse(SuccessPublishAnnouncement, true)
 }
 
-func (service *AnnouncementService) EditAnnouncement(req *RequestEditAnnouncement) *ApiResponse[ResponseEditAnnouncement] {
+func (service *AnnouncementService) EditAnnouncement(req *RequestEditAnnouncement) *ApiResponse[bool] {
 	if req.Announcement == nil || req.AnnouncementId <= 0 || !operation.IsValidAnnouncementType(req.Announcement.Type) {
-		return NewApiResponse[ResponseEditAnnouncement](ErrIllegalParam, nil)
+		return NewApiResponse(ErrIllegalParam, false)
 	}
 
-	if res := CheckPermission[ResponseEditAnnouncement](req.Permission, operation.AnnouncementEdit); res != nil {
+	if res := CheckPermission[bool](req.Permission, operation.AnnouncementEdit); res != nil {
 		return res
 	}
 
-	announcement, res := CallDBFunc[*operation.Announcement, ResponseEditAnnouncement](func() (*operation.Announcement, error) {
+	announcement, res := CallDBFunc[*operation.Announcement, bool](func() (*operation.Announcement, error) {
 		return service.announcementOperation.GetAnnouncementById(req.AnnouncementId)
 	})
 	if res != nil {
@@ -150,7 +147,7 @@ func (service *AnnouncementService) EditAnnouncement(req *RequestEditAnnouncemen
 		updateData["force_show"] = req.ForceShow
 	}
 
-	if res := CallDBFuncWithoutRet[ResponseEditAnnouncement](func() error {
+	if res := CallDBFuncWithoutRet[bool](func() error {
 		return service.announcementOperation.UpdateAnnouncement(announcement, updateData)
 	}); res != nil {
 		return res
@@ -172,20 +169,19 @@ func (service *AnnouncementService) EditAnnouncement(req *RequestEditAnnouncemen
 		),
 	})
 
-	data := ResponseEditAnnouncement(true)
-	return NewApiResponse(SuccessEditAnnouncement, &data)
+	return NewApiResponse(SuccessEditAnnouncement, true)
 }
 
-func (service *AnnouncementService) DeleteAnnouncement(req *RequestDeleteAnnouncement) *ApiResponse[ResponseDeleteAnnouncement] {
+func (service *AnnouncementService) DeleteAnnouncement(req *RequestDeleteAnnouncement) *ApiResponse[bool] {
 	if req.AnnouncementId <= 0 {
-		return NewApiResponse[ResponseDeleteAnnouncement](ErrIllegalParam, nil)
+		return NewApiResponse(ErrIllegalParam, false)
 	}
 
-	if res := CheckPermission[ResponseDeleteAnnouncement](req.Permission, operation.AnnouncementDelete); res != nil {
+	if res := CheckPermission[bool](req.Permission, operation.AnnouncementDelete); res != nil {
 		return res
 	}
 
-	announcement, res := CallDBFunc[*operation.Announcement, ResponseDeleteAnnouncement](func() (*operation.Announcement, error) {
+	announcement, res := CallDBFunc[*operation.Announcement, bool](func() (*operation.Announcement, error) {
 		return service.announcementOperation.GetAnnouncementById(req.AnnouncementId)
 	})
 	if res != nil {
@@ -194,7 +190,7 @@ func (service *AnnouncementService) DeleteAnnouncement(req *RequestDeleteAnnounc
 
 	oldValue, _ := json.Marshal(announcement)
 
-	if res := CallDBFuncWithoutRet[ResponseDeleteAnnouncement](func() error {
+	if res := CallDBFuncWithoutRet[bool](func() error {
 		return service.announcementOperation.DeleteAnnouncement(announcement)
 	}); res != nil {
 		return res
@@ -215,6 +211,5 @@ func (service *AnnouncementService) DeleteAnnouncement(req *RequestDeleteAnnounc
 		),
 	})
 
-	data := ResponseDeleteAnnouncement(true)
-	return NewApiResponse(SuccessDeleteAnnouncement, &data)
+	return NewApiResponse(SuccessDeleteAnnouncement, true)
 }

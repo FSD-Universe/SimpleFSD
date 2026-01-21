@@ -16,10 +16,10 @@ var (
 
 type ClientServiceInterface interface {
 	GetOnlineClients() *fsd.OnlineClients
-	SendMessageToClient(req *RequestSendMessageToClient) *ApiResponse[ResponseSendMessageToClient]
-	KillClient(req *RequestKillClient) *ApiResponse[ResponseKillClient]
-	GetClientFlightPath(req *RequestClientPath) *ApiResponse[ResponseClientPath]
-	SendBroadcastMessage(req *RequestSendBroadcastMessage) *ApiResponse[ResponseSendBroadcastMessage]
+	SendMessageToClient(req *RequestSendMessageToClient) *ApiResponse[bool]
+	KillClient(req *RequestKillClient) *ApiResponse[bool]
+	GetClientFlightPath(req *RequestClientPath) *ApiResponse[[]*fsd.PilotPath]
+	SendBroadcastMessage(req *RequestSendBroadcastMessage) *ApiResponse[bool]
 }
 
 type RequestSendMessageToClient struct {
@@ -29,8 +29,6 @@ type RequestSendMessageToClient struct {
 	Message string `json:"message"`
 }
 
-type ResponseSendMessageToClient bool
-
 type RequestKillClient struct {
 	JwtHeader
 	EchoContentHeader
@@ -38,13 +36,9 @@ type RequestKillClient struct {
 	Reason         string `json:"reason"`
 }
 
-type ResponseKillClient bool
-
 type RequestClientPath struct {
 	Callsign string `param:"callsign"`
 }
-
-type ResponseClientPath []*fsd.PilotPath
 
 type RequestSendBroadcastMessage struct {
 	JwtHeader
@@ -52,5 +46,3 @@ type RequestSendBroadcastMessage struct {
 	Target  string `json:"target"`
 	Message string `json:"message"`
 }
-
-type ResponseSendBroadcastMessage bool

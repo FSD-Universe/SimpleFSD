@@ -88,8 +88,8 @@ type StoreServiceInterface interface {
 	GetStoreInfo(fileType FileType, fileLimit *config.HttpServerStoreFileLimit, file *multipart.FileHeader) (*StoreInfo, *ApiStatus)
 	SaveFile(storeInfo *StoreInfo, file *multipart.FileHeader) *ApiStatus
 	DeleteFile(storeInfo *StoreInfo) error
-	SaveUploadImage(req *RequestUploadImage) *ApiResponse[ResponseUploadImage]
-	SaveUploadFile(req *RequestUploadFile) *ApiResponse[ResponseUploadFile]
+	SaveUploadImage(req *RequestUploadImage) *ApiResponse[*ResponseUploadImage]
+	SaveUploadFile(req *RequestUploadFile) *ApiResponse[*ResponseUploadFile]
 }
 
 type RequestUploadImage struct {

@@ -16,12 +16,12 @@ var (
 )
 
 type FlightPlanServiceInterface interface {
-	SubmitFlightPlan(req *RequestSubmitFlightPlan) *ApiResponse[ResponseSubmitFlightPlan]
+	SubmitFlightPlan(req *RequestSubmitFlightPlan) *ApiResponse[bool]
 	GetFlightPlan(req *RequestGetFlightPlan) *ApiResponse[ResponseGetFlightPlan]
 	GetFlightPlans(req *RequestGetFlightPlans) *ApiResponse[ResponseGetFlightPlans]
-	DeleteSelfFlightPlan(req *RequestDeleteSelfFlightPlan) *ApiResponse[ResponseDeleteSelfFlightPlan]
-	DeleteFlightPlan(req *RequestDeleteFlightPlan) *ApiResponse[ResponseDeleteFlightPlan]
-	LockFlightPlan(req *RequestLockFlightPlan) *ApiResponse[ResponseLockFlightPlan]
+	DeleteSelfFlightPlan(req *RequestDeleteSelfFlightPlan) *ApiResponse[bool]
+	DeleteFlightPlan(req *RequestDeleteFlightPlan) *ApiResponse[bool]
+	LockFlightPlan(req *RequestLockFlightPlan) *ApiResponse[bool]
 }
 
 type RequestSubmitFlightPlan struct {
@@ -29,35 +29,23 @@ type RequestSubmitFlightPlan struct {
 	*operation.FlightPlan
 }
 
-type ResponseSubmitFlightPlan bool
-
 type RequestGetFlightPlan struct {
 	JwtHeader
 }
 
-type ResponseGetFlightPlan struct {
-	*operation.FlightPlan
-}
+type ResponseGetFlightPlan = *operation.FlightPlan
 
 type RequestGetFlightPlans struct {
 	JwtHeader
-	Page     int `query:"page_number"`
-	PageSize int `query:"page_size"`
+	PageArguments
 }
 
-type ResponseGetFlightPlans struct {
-	Items    []*operation.FlightPlan `json:"items"`
-	Page     int                     `json:"page"`
-	PageSize int                     `json:"page_size"`
-	Total    int64                   `json:"total"`
-}
+type ResponseGetFlightPlans = *PageResponse[*operation.FlightPlan]
 
 type RequestDeleteSelfFlightPlan struct {
 	JwtHeader
 	EchoContentHeader
 }
-
-type ResponseDeleteSelfFlightPlan bool
 
 type RequestDeleteFlightPlan struct {
 	JwtHeader
@@ -65,13 +53,9 @@ type RequestDeleteFlightPlan struct {
 	TargetCid int `param:"cid"`
 }
 
-type ResponseDeleteFlightPlan bool
-
 type RequestLockFlightPlan struct {
 	JwtHeader
 	EchoContentHeader
 	TargetCid int `param:"cid"`
 	Lock      bool
 }
-
-type ResponseLockFlightPlan bool

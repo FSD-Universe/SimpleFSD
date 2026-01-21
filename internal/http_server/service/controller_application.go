@@ -47,8 +47,7 @@ func (service *ControllerApplicationService) GetSelfApplication(req *RequestGetS
 		return res
 	}
 
-	data := ResponseGetSelfApplication(application)
-	return NewApiResponse(SuccessGetSelfApplication, &data)
+	return NewApiResponse(SuccessGetSelfApplication, application)
 }
 
 func (service *ControllerApplicationService) GetApplications(req *RequestGetApplications) *ApiResponse[ResponseGetApplications] {
@@ -65,22 +64,21 @@ func (service *ControllerApplicationService) GetApplications(req *RequestGetAppl
 		return res
 	}
 
-	data := ResponseGetApplications(&PageResponse[*operation.ControllerApplication]{
+	return NewApiResponse(SuccessGetApplications, &PageResponse[*operation.ControllerApplication]{
 		Items:    applications,
 		Page:     req.Page,
 		PageSize: req.PageSize,
 		Total:    total,
 	})
-	return NewApiResponse(SuccessGetApplications, &data)
 }
 
-func (service *ControllerApplicationService) SubmitControllerApplication(req *RequestSubmitControllerApplication) *ApiResponse[ResponseSubmitControllerApplication] {
+func (service *ControllerApplicationService) SubmitControllerApplication(req *RequestSubmitControllerApplication) *ApiResponse[bool] {
 	if req.ControllerApplication == nil || req.WhyWantToBeController == "" || req.ControllerRecord == "" {
-		return NewApiResponse[ResponseSubmitControllerApplication](ErrIllegalParam, nil)
+		return NewApiResponse(ErrIllegalParam, false)
 	}
 
 	if req.IsGuest && (req.Platform == "" || req.Evidence == "") {
-		return NewApiResponse[ResponseSubmitControllerApplication](ErrIllegalParam, nil)
+		return NewApiResponse(ErrIllegalParam, false)
 	}
 
 	req.ControllerApplication.ID = 0
@@ -88,7 +86,7 @@ func (service *ControllerApplicationService) SubmitControllerApplication(req *Re
 	req.ControllerApplication.Status = int(operation.Submitted)
 	req.ControllerApplication.Message = ""
 
-	if res := CallDBFuncWithoutRet[ResponseSubmitControllerApplication](func() error {
+	if res := CallDBFuncWithoutRet[bool](func() error {
 		return service.applicationOperation.SaveApplication(req.ControllerApplication)
 	}); res != nil {
 		return res
@@ -110,19 +108,18 @@ func (service *ControllerApplicationService) SubmitControllerApplication(req *Re
 		),
 	})
 
-	data := ResponseSubmitControllerApplication(true)
-	return NewApiResponse(SuccessSubmitApplication, &data)
+	return NewApiResponse(SuccessSubmitApplication, true)
 }
 
-func (service *ControllerApplicationService) CancelSelfApplication(req *RequestCancelSelfApplication) *ApiResponse[ResponseCancelSelfApplication] {
-	application, res := CallDBFunc[*operation.ControllerApplication, ResponseCancelSelfApplication](func() (*operation.ControllerApplication, error) {
+func (service *ControllerApplicationService) CancelSelfApplication(req *RequestCancelSelfApplication) *ApiResponse[bool] {
+	application, res := CallDBFunc[*operation.ControllerApplication, bool](func() (*operation.ControllerApplication, error) {
 		return service.applicationOperation.GetApplicationByUserId(req.Uid)
 	})
 	if res != nil {
 		return res
 	}
 
-	if res := CallDBFuncWithoutRet[ResponseCancelSelfApplication](func() error {
+	if res := CallDBFuncWithoutRet[bool](func() error {
 		return service.applicationOperation.CancelApplication(application)
 	}); res != nil {
 		return res
@@ -144,16 +141,15 @@ func (service *ControllerApplicationService) CancelSelfApplication(req *RequestC
 		),
 	})
 
-	data := ResponseCancelSelfApplication(true)
-	return NewApiResponse(SuccessCancelApplication, &data)
+	return NewApiResponse(SuccessCancelApplication, true)
 }
 
-func (service *ControllerApplicationService) UpdateApplicationStatus(req *RequestUpdateApplicationStatus) *ApiResponse[ResponseUpdateApplicationStatus] {
+func (service *ControllerApplicationService) UpdateApplicationStatus(req *RequestUpdateApplicationStatus) *ApiResponse[bool] {
 	if req.ApplicationId <= 0 || !operation.IsValidApplicationStatus(req.Status) {
-		return NewApiResponse[ResponseUpdateApplicationStatus](ErrIllegalParam, nil)
+		return NewApiResponse(ErrIllegalParam, false)
 	}
 
-	user, res := CallDBFunc[*operation.User, ResponseUpdateApplicationStatus](func() (*operation.User, error) {
+	user, res := CallDBFunc[*operation.User, bool](func() (*operation.User, error) {
 		return service.userOperation.GetUserByUid(req.Uid)
 	})
 	if res != nil {
@@ -166,34 +162,34 @@ func (service *ControllerApplicationService) UpdateApplicationStatus(req *Reques
 
 	switch applicationStatus {
 	case operation.Submitted:
-		return NewApiResponse[ResponseUpdateApplicationStatus](ErrIllegalParam, nil)
+		return NewApiResponse(ErrIllegalParam, false)
 	case operation.UnderProcessing:
-		if res := CheckPermission[ResponseUpdateApplicationStatus](req.Permission, operation.ControllerApplicationConfirm); res != nil {
+		if res := CheckPermission[bool](req.Permission, operation.ControllerApplicationConfirm); res != nil {
 			return res
 		}
 		if len(req.AvailableTime) == 0 {
-			return NewApiResponse[ResponseUpdateApplicationStatus](ErrIllegalParam, nil)
+			return NewApiResponse(ErrIllegalParam, false)
 		}
 		auditEventType = operation.ControllerApplicationProcessing
 	case operation.Passed:
 		if req.Message == "" {
-			return NewApiResponse[ResponseUpdateApplicationStatus](ErrIllegalParam, nil)
+			return NewApiResponse(ErrIllegalParam, false)
 		}
-		if res := CheckPermission[ResponseUpdateApplicationStatus](req.Permission, operation.ControllerApplicationPass); res != nil {
+		if res := CheckPermission[bool](req.Permission, operation.ControllerApplicationPass); res != nil {
 			return res
 		}
 		auditEventType = operation.ControllerApplicationPassed
 	case operation.Rejected:
 		if req.Message == "" {
-			return NewApiResponse[ResponseUpdateApplicationStatus](ErrIllegalParam, nil)
+			return NewApiResponse(ErrIllegalParam, false)
 		}
-		if res := CheckPermission[ResponseUpdateApplicationStatus](req.Permission, operation.ControllerApplicationReject); res != nil {
+		if res := CheckPermission[bool](req.Permission, operation.ControllerApplicationReject); res != nil {
 			return res
 		}
 		auditEventType = operation.ControllerApplicationRejected
 	}
 
-	application, res := CallDBFunc[*operation.ControllerApplication, ResponseUpdateApplicationStatus](func() (*operation.ControllerApplication, error) {
+	application, res := CallDBFunc[*operation.ControllerApplication, bool](func() (*operation.ControllerApplication, error) {
 		return service.applicationOperation.GetApplicationById(req.ApplicationId)
 	})
 	if res != nil {
@@ -201,12 +197,12 @@ func (service *ControllerApplicationService) UpdateApplicationStatus(req *Reques
 	}
 
 	if req.Status == application.Status {
-		return NewApiResponse[ResponseUpdateApplicationStatus](ErrSameApplicationStatus, nil)
+		return NewApiResponse(ErrSameApplicationStatus, false)
 	}
 
 	if val, ok := operation.AllowedStatusMap[operation.ControllerApplicationStatus(application.Status)]; ok {
 		if !slices.Contains(val, applicationStatus) {
-			return NewApiResponse[ResponseUpdateApplicationStatus](ErrStatusCantFallBack, nil)
+			return NewApiResponse(ErrStatusCantFallBack, false)
 		}
 	}
 
@@ -214,7 +210,7 @@ func (service *ControllerApplicationService) UpdateApplicationStatus(req *Reques
 	var emailData interface{}
 
 	if applicationStatus == operation.UnderProcessing {
-		if res := CallDBFuncWithoutRet[ResponseUpdateApplicationStatus](func() error {
+		if res := CallDBFuncWithoutRet[bool](func() error {
 			return service.applicationOperation.ConfirmApplicationUnderProcessing(application)
 		}); res != nil {
 			return res
@@ -227,7 +223,7 @@ func (service *ControllerApplicationService) UpdateApplicationStatus(req *Reques
 		}
 		object = fmt.Sprintf("%d(%s)", application.ID, utils.FormatCid(application.User.Cid))
 	} else {
-		if res := CallDBFuncWithoutRet[ResponseUpdateApplicationStatus](func() error {
+		if res := CallDBFuncWithoutRet[bool](func() error {
 			return service.applicationOperation.UpdateApplicationStatus(application, applicationStatus, req.Message)
 		}); res != nil {
 			return res
@@ -269,6 +265,5 @@ func (service *ControllerApplicationService) UpdateApplicationStatus(req *Reques
 		),
 	})
 
-	data := ResponseUpdateApplicationStatus(true)
-	return NewApiResponse(SuccessUpdateApplication, &data)
+	return NewApiResponse(SuccessUpdateApplication, true)
 }
