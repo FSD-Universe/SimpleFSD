@@ -28,19 +28,6 @@ func (content *CommandContent) verifyFsdUserInfo(session SessionInterface, calls
 		return ResultError(InvalidProtocolVision, true, callsign, nil)
 	}
 
-	client, ok := content.clientManager.GetClient(callsign)
-
-	// 客户端存在且标记为断开连接
-	if ok {
-		if client.Reconnect(session) {
-			// 客户端重连
-			session.SetClient(client)
-		} else {
-			// 呼号已被使用
-			return ResultError(CallsignInUse, true, callsign, nil)
-		}
-	}
-
 	user, err := cid.GetUser(content.userOperation)
 	if err != nil {
 		return ResultError(InvalidCidPassword, true, callsign, err)
@@ -52,10 +39,23 @@ func (content *CommandContent) verifyFsdUserInfo(session SessionInterface, calls
 		return ResultError(InvalidCidPassword, true, callsign, nil)
 	}
 
-	// 重设重连客户端的User
-	if client != nil {
-		client.SetUser(user)
+	client, ok := content.clientManager.GetClient(callsign)
+
+	// 客户端存在
+	if ok {
+		if client.User().Cid != user.Cid {
+			// 呼号一致但是cid不同，不属于重连
+		} else if client.Reconnect(session) {
+			// 重设重连客户端的User
+			client.SetUser(user)
+			// 客户端重连
+			session.SetClient(client)
+		} else {
+			// 呼号已被使用
+			return ResultError(CallsignInUse, true, callsign, nil)
+		}
 	}
+
 	session.SetUser(user)
 
 	return nil
@@ -64,17 +64,6 @@ func (content *CommandContent) verifyFsdUserInfo(session SessionInterface, calls
 func (content *CommandContent) verifyVatsimUserInfo(session SessionInterface, callsign string, cid operation.UserId, token string) *Result {
 	if !callsignValid(callsign) {
 		return ResultError(CallsignInvalid, true, callsign, nil)
-	}
-	client, ok := content.clientManager.GetClient(callsign)
-	// 客户端存在且标记为断开连接
-	if ok {
-		if client.Reconnect(session) {
-			// 客户端重连
-			session.SetClient(client)
-		} else {
-			// 呼号已被使用
-			return ResultError(CallsignInUse, true, callsign, nil)
-		}
 	}
 
 	user, err := cid.GetUser(content.userOperation)
@@ -94,9 +83,22 @@ func (content *CommandContent) verifyVatsimUserInfo(session SessionInterface, ca
 		return ResultError(InvalidCidPassword, true, callsign, errors.New("invalid claims type"))
 	}
 
-	if client != nil {
-		client.SetUser(user)
+	client, ok := content.clientManager.GetClient(callsign)
+
+	// 客户端存在
+	if ok {
+		if client.User().Cid != user.Cid {
+			// 呼号一致但是cid不同，不属于重连
+		} else if client.Reconnect(session) {
+			// 客户端重连
+			client.SetUser(user)
+			session.SetClient(client)
+		} else {
+			// 呼号已被使用
+			return ResultError(CallsignInUse, true, callsign, nil)
+		}
 	}
+
 	session.SetUser(user)
 
 	return nil

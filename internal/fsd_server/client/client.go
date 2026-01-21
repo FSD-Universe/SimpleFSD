@@ -211,19 +211,18 @@ func (client *Client) Delete() {
 		return
 	}
 
+	// 写入连线数据
+	if err := client.historyOperation.SaveHistory(client.history); err != nil {
+		client.logger.Error("Failed to end history: %v")
+	}
+
 	if client.isAtc {
 		// 写入管制连线时长
-		if err := client.historyOperation.SaveHistory(client.history); err != nil {
-			client.logger.Error("Failed to end history: %v")
-		}
 		if err := client.userOperation.UpdateUserAtcTime(client.user, client.history.OnlineTime); err != nil {
 			client.logger.Error("Failed to add ATC time: %v")
 		}
 	} else {
 		// 写入机组连线时长
-		if err := client.historyOperation.SaveHistory(client.history); err != nil {
-			client.logger.Error("Failed to end history: %v")
-		}
 		if err := client.userOperation.UpdateUserPilotTime(client.user, client.history.OnlineTime); err != nil {
 			client.logger.Error("Failed to add pilot time: %v")
 		}
