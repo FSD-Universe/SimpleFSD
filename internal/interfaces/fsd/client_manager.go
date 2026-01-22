@@ -77,7 +77,8 @@ type OnlinePilot struct {
 	Transponder string                `json:"transponder"`
 	Pitch       float64               `json:"pitch"`
 	Bank        float64               `json:"bank"`
-	Heading     float64               `json:"heading"`
+	Hdg         float64               `json:"hdg"`
+	Heading     int                   `json:"heading"`
 	OnGround    bool                  `json:"on_ground"`
 	VoiceRange  float64               `json:"voice_range"`
 	Altitude    int                   `json:"altitude"`
@@ -100,7 +101,8 @@ func NewOnlinePilotFromClient(client ClientInterface) *OnlinePilot {
 		FlightPlan:  client.FlightPlan(),
 		LogonTime:   client.History().StartTime.Format(time.RFC3339),
 	}
-	onlinePilot.Pitch, onlinePilot.Bank, onlinePilot.Heading, onlinePilot.OnGround = client.Posture()
+	onlinePilot.Pitch, onlinePilot.Bank, onlinePilot.Hdg, onlinePilot.OnGround = client.Posture()
+	onlinePilot.Heading = int(onlinePilot.Hdg)
 	return onlinePilot
 }
 
