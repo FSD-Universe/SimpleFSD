@@ -19,7 +19,7 @@ Echo未经过测试, 理论上任何实现了 FSD Version 3.000 Draft 9 协议�
 - 支持计划锁定：自动锁定被管制员修改过的飞行计划，直到用户下线或者提交起落机场不同的计划
 - 支持更加详细的管制员信息获取：例如可以获取到 Logoff time和管制员是否处于Break状态
 - 支持 FSD Version 3.000 Draft 9 协议
-- 支持 VATSIM(TOKEN) 协议与非满血 VATSIM2022 协议
+- 支持 VATSIM 协议
 - 支持高并发：golang原生支持
 - 支持VisualPosition：可以做到0.2s上传一次位置
 - 支持语音调频：本功能需要额外的软件
