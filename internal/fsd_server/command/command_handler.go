@@ -43,13 +43,15 @@ func (content *CommandContent) verifyFsdUserInfo(session SessionInterface, calls
 
 	// 客户端存在
 	if ok {
-		if client.User().Cid != user.Cid {
-			// 呼号一致但是cid不同，不属于重连
-		} else if client.Reconnect(session) {
-			// 重设重连客户端的User
-			client.SetUser(user)
-			// 客户端重连
-			session.SetClient(client)
+		if client.Disconnected() {
+			// 客户端标记为断开连接
+			if client.User().Cid == user.Cid {
+				// CID相同，重新连接
+				client.Reconnect(session)
+			} else {
+				// CID不同，呼号相同，清除客户端
+				client.Delete()
+			}
 		} else {
 			// 呼号已被使用
 			return ResultError(CallsignInUse, true, callsign, nil)
@@ -87,12 +89,15 @@ func (content *CommandContent) verifyVatsimUserInfo(session SessionInterface, ca
 
 	// 客户端存在
 	if ok {
-		if client.User().Cid != user.Cid {
-			// 呼号一致但是cid不同，不属于重连
-		} else if client.Reconnect(session) {
-			// 客户端重连
-			client.SetUser(user)
-			session.SetClient(client)
+		if client.Disconnected() {
+			// 客户端标记为断开连接
+			if client.User().Cid == user.Cid {
+				// CID相同，重新连接
+				client.Reconnect(session)
+			} else {
+				// CID不同，呼号相同，清除客户端
+				client.Delete()
+			}
 		} else {
 			// 呼号已被使用
 			return ResultError(CallsignInUse, true, callsign, nil)
@@ -155,7 +160,7 @@ func (content *CommandContent) HandleVatsimAddAtc(session SessionInterface, data
 		session.Client().SetRating(Rating(reqRating))
 		session.Client().SetRealName(realName)
 	}
-	content.logger.InfoF("[%s] ATC login successfully", callsign)
+	content.logger.InfoF("[%s(%04d)] ATC login successfully", callsign, session.User().Cid)
 	broadcastData := data[:6]
 	broadcastData[4] = ""
 	go content.clientManager.BroadcastMessage(MakePacket(AddAtc, broadcastData...), session.Client(), BroadcastToClientInRange)
@@ -187,8 +192,9 @@ func (content *CommandContent) HandleFsdAddAtc(session SessionInterface, data []
 	} else {
 		session.Client().SetRating(Rating(reqRating))
 		session.Client().SetRealName(realName)
+		_ = session.Client().SetPosition(0, latitude, longitude)
 	}
-	content.logger.InfoF("[%s] ATC login successfully", callsign)
+	content.logger.InfoF("[%s(%04d)] ATC login successfully", callsign, session.User().Cid)
 	broadcastData := data[:6]
 	broadcastData[4] = ""
 	go content.clientManager.BroadcastMessage(MakePacket(AddAtc, broadcastData...), session.Client(), BroadcastToClientInRange)
@@ -234,7 +240,7 @@ func (content *CommandContent) handleClientLogin(session SessionInterface, data 
 		session.Client().SetRating(reqRating)
 		session.Client().SetRealName(realName)
 	}
-	content.logger.InfoF("[%s] Client login successfully", callsign)
+	content.logger.InfoF("[%s(%04d)] Client login successfully", callsign, session.User().Cid)
 	broadcastData := data[:6]
 	broadcastData[4] = ""
 	go content.clientManager.BroadcastMessage(MakePacket(AddPilot, broadcastData...), session.Client(), BroadcastToClientInRange)
@@ -288,14 +294,15 @@ func (content *CommandContent) HandlePilotPosUpdate(session SessionInterface, da
 	transponder := utils.StrToInt(data[2], 0)
 	latitude := utils.StrToFloat(data[4], 0)
 	longitude := utils.StrToFloat(data[5], 0)
-	altitude := utils.StrToInt(data[6], 0)
+	trueAltitude := utils.StrToInt(data[6], 0)
 	groundSpeed := utils.StrToInt(data[7], 0)
 	pbh := uint32(utils.StrToInt(data[8], 0))
+	pressureAltitude := trueAltitude + utils.StrToInt(data[9], 0)
 	if session.Client() == nil {
 		return ResultError(Syntax, false, "", fmt.Errorf("client not register"))
 	}
 	go content.clientManager.BroadcastMessage(rawLine, session.Client(), BroadcastToClientInRange)
-	session.Client().UpdatePilotPos(transponder, latitude, longitude, altitude, groundSpeed, pbh)
+	session.Client().UpdatePilotPos(transponder, latitude, longitude, trueAltitude, pressureAltitude, groundSpeed, pbh)
 	return ResultSuccess()
 }
 

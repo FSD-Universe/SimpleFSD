@@ -21,6 +21,7 @@ func TestStrToFloat(t *testing.T) {
 		{"4654132", 1, 4654132},
 		{"ABCD", 0, 0},
 		{"ABCD", 100, 100},
+		{"-1", 100, -1},
 	}
 	pass := 0
 	fail := 0
@@ -46,6 +47,7 @@ func TestStrToInt(t *testing.T) {
 		{"4654132", 1, 4654132},
 		{"ABCD", 0, 0},
 		{"ABCD", 100, 100},
+		{"-1", 100, -1},
 	}
 	pass := 0
 	fail := 0

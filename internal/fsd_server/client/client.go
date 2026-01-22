@@ -41,7 +41,8 @@ type Client struct {
 	position                [4]Position
 	simType                 int
 	transponder             string
-	altitude                int
+	trueAltitude            int
+	pressureAltitude        int
 	groundSpeed             int
 	frequency               int
 	pbh                     uint32
@@ -115,7 +116,7 @@ func NewClient(
 		position:            [4]Position{},
 		simType:             0,
 		transponder:         "2000",
-		altitude:            0,
+		trueAltitude:        0,
 		groundSpeed:         0,
 		frequency:           99998,
 		visualRange:         40,
@@ -140,7 +141,7 @@ func (client *Client) recordPathPoint() {
 	client.paths = append(client.paths, &PilotPath{
 		Latitude:    client.position[0].Latitude,
 		Longitude:   client.position[0].Longitude,
-		Altitude:    client.altitude,
+		Altitude:    client.trueAltitude,
 		GroundSpeed: client.groundSpeed,
 		Timestamp:   time.Now().Unix(),
 	})
@@ -165,8 +166,8 @@ func (client *Client) Delete() {
 
 	defer func() {
 		client.logger.Info("Client session deleted")
-		if !client.clientManager.DeleteClient(client.callsign) {
-			client.logger.Error("Failed to delete from client manager")
+		if err := client.clientManager.DeleteClient(client.callsign); err != nil {
+			client.logger.ErrorF("Failed to delete from client manager, %v", err)
 		}
 		if client.deleteCallback != nil {
 			client.deleteCallback()
@@ -179,18 +180,18 @@ func (client *Client) Delete() {
 	}
 
 	// 断线后解锁飞行计划
-	if client.flightPlan != nil {
+	if !client.isAtc && client.flightPlan != nil {
 		err := client.flightPlanOperation.UnlockFlightPlan(client.flightPlan)
 		if err != nil {
 			client.logger.Error("Failed to unlock flight plan")
 		}
-	}
 
-	// 如果判断飞机已在目的机场内，则删除计划
-	if client.flightPlan != nil && client.checkArrival() {
-		err := client.flightPlanOperation.DeleteFlightPlan(client.flightPlan)
-		if err != nil {
-			client.logger.Error("Failed to delete flight plan")
+		// 如果判断飞机已在目的机场内，则删除计划
+		if client.checkArrival() {
+			err := client.flightPlanOperation.DeleteFlightPlan(client.flightPlan)
+			if err != nil {
+				client.logger.Error("Failed to delete flight plan")
+			}
 		}
 	}
 
@@ -348,10 +349,11 @@ func (client *Client) checkArrival() bool {
 	return false
 }
 
-func (client *Client) UpdatePilotPos(transponder int, lat float64, lon float64, alt int, groundSpeed int, pbh uint32) {
+func (client *Client) UpdatePilotPos(transponder int, lat float64, lon float64, trueAlt int, pressAlt int, groundSpeed int, pbh uint32) {
 	_ = client.SetPosition(0, lat, lon)
 	client.transponder = fmt.Sprintf("%04d", transponder)
-	client.altitude = alt
+	client.trueAltitude = trueAlt
+	client.pressureAltitude = pressAlt
 	client.groundSpeed = groundSpeed
 	client.pbh = pbh
 	client.recordPathPoint()
@@ -495,7 +497,7 @@ func (client *Client) VoiceRange() float64 {
 	if client.isAtc {
 		return client.visualRange
 	}
-	distance := 1.23 * math.Sqrt(float64(client.altitude))
+	distance := 1.23 * math.Sqrt(float64(client.trueAltitude))
 	return math.Max(distance, client.config.Server.VoiceServer.MinimumPilotRange)
 }
 
@@ -543,7 +545,10 @@ func (client *Client) History() *operation.History { return client.history }
 
 func (client *Client) Transponder() string { return client.transponder }
 
-func (client *Client) Altitude() int { return client.altitude }
+func (client *Client) TrueAltitude() int { return client.trueAltitude }
+func (client *Client) PressureAltitude() int {
+	return client.pressureAltitude
+}
 
 func (client *Client) GroundSpeed() int { return client.groundSpeed }
 

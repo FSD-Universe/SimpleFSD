@@ -328,17 +328,17 @@ func (cm *ClientManager) GetClient(callsign string) (ClientInterface, bool) {
 	return client, exists
 }
 
-func (cm *ClientManager) DeleteClient(callsign string) bool {
+func (cm *ClientManager) DeleteClient(callsign string) error {
 	cm.lock.Lock()
 	defer cm.lock.Unlock()
 
 	client, exists := cm.clients[callsign]
 	if !exists {
-		return false
+		return nil
 	}
 
 	delete(cm.clients, callsign)
-	return cm.connectionManager.RemoveConnection(client) == nil
+	return cm.connectionManager.RemoveConnection(client)
 }
 
 func (cm *ClientManager) SendMessageTo(callsign string, message []byte) error {

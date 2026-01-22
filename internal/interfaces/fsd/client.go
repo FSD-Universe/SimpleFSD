@@ -29,7 +29,7 @@ type ClientInterface interface {
 	MarkedDisconnect(immediate bool)
 	UpsertFlightPlan(flightPlanData []string) error
 	SetPosition(index int, lat float64, lon float64) error
-	UpdatePilotPos(transponder int, lat float64, lon float64, alt int, groundSpeed int, pbh uint32)
+	UpdatePilotPos(transponder int, lat float64, lon float64, trueAlt int, pressAlt int, groundSpeed int, pbh uint32)
 	UpdateAtcPos(frequency int, facility Facility, visualRange float64, lat float64, lon float64)
 	UpdateAtcVisPoint(visIndex int, lat float64, lon float64) error
 	ClearAtcAtisInfo()
@@ -59,7 +59,8 @@ type ClientInterface interface {
 	AtisInfo() []string
 	History() *operation.History
 	Transponder() string
-	Altitude() int
+	TrueAltitude() int
+	PressureAltitude() int
 	GroundSpeed() int
 	Posture() (float64, float64, float64, bool)
 	Paths() []*PilotPath

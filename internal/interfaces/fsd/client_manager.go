@@ -22,7 +22,7 @@ type ClientManagerInterface interface {
 	GetClientSnapshot() []ClientInterface
 	AddClient(client ClientInterface) error
 	GetClient(callsign string) (ClientInterface, bool)
-	DeleteClient(callsign string) bool
+	DeleteClient(callsign string) error
 	HandleKickClientFromServerMessage(message *queue.Message) error
 	HandleSendMessageToClientMessage(message *queue.Message) error
 	HandleBroadcastMessage(message *queue.Message) error
@@ -69,37 +69,39 @@ type OnlineGeneral struct {
 }
 
 type OnlinePilot struct {
-	Cid         int                   `json:"cid"`
-	Callsign    string                `json:"callsign"`
-	RealName    string                `json:"real_name"`
-	Latitude    float64               `json:"latitude"`
-	Longitude   float64               `json:"longitude"`
-	Transponder string                `json:"transponder"`
-	Pitch       float64               `json:"pitch"`
-	Bank        float64               `json:"bank"`
-	Hdg         float64               `json:"hdg"`
-	Heading     int                   `json:"heading"`
-	OnGround    bool                  `json:"on_ground"`
-	VoiceRange  float64               `json:"voice_range"`
-	Altitude    int                   `json:"altitude"`
-	GroundSpeed int                   `json:"ground_speed"`
-	FlightPlan  *operation.FlightPlan `json:"flight_plan"`
-	LogonTime   string                `json:"logon_time"`
+	Cid              int                   `json:"cid"`
+	Callsign         string                `json:"callsign"`
+	RealName         string                `json:"real_name"`
+	Latitude         float64               `json:"latitude"`
+	Longitude        float64               `json:"longitude"`
+	Transponder      string                `json:"transponder"`
+	Pitch            float64               `json:"pitch"`
+	Bank             float64               `json:"bank"`
+	Hdg              float64               `json:"hdg"`
+	Heading          int                   `json:"heading"`
+	OnGround         bool                  `json:"on_ground"`
+	VoiceRange       float64               `json:"voice_range"`
+	Altitude         int                   `json:"altitude"`
+	PressureAltitude int                   `json:"pressure_altitude"`
+	GroundSpeed      int                   `json:"ground_speed"`
+	FlightPlan       *operation.FlightPlan `json:"flight_plan"`
+	LogonTime        string                `json:"logon_time"`
 }
 
 func NewOnlinePilotFromClient(client ClientInterface) *OnlinePilot {
 	onlinePilot := &OnlinePilot{
-		Cid:         client.User().Cid,
-		Callsign:    client.Callsign(),
-		RealName:    client.RealName(),
-		Latitude:    client.Position()[0].Latitude,
-		Longitude:   client.Position()[0].Longitude,
-		Transponder: client.Transponder(),
-		VoiceRange:  client.VoiceRange(),
-		Altitude:    client.Altitude(),
-		GroundSpeed: client.GroundSpeed(),
-		FlightPlan:  client.FlightPlan(),
-		LogonTime:   client.History().StartTime.Format(time.RFC3339),
+		Cid:              client.User().Cid,
+		Callsign:         client.Callsign(),
+		RealName:         client.RealName(),
+		Latitude:         client.Position()[0].Latitude,
+		Longitude:        client.Position()[0].Longitude,
+		Transponder:      client.Transponder(),
+		VoiceRange:       client.VoiceRange(),
+		Altitude:         client.TrueAltitude(),
+		PressureAltitude: client.PressureAltitude(),
+		GroundSpeed:      client.GroundSpeed(),
+		FlightPlan:       client.FlightPlan(),
+		LogonTime:        client.History().StartTime.Format(time.RFC3339),
 	}
 	onlinePilot.Pitch, onlinePilot.Bank, onlinePilot.Hdg, onlinePilot.OnGround = client.Posture()
 	onlinePilot.Heading = int(onlinePilot.Hdg)
