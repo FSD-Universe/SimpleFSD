@@ -6,6 +6,7 @@ package main
 
 import (
 	"archive/zip"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -15,7 +16,13 @@ import (
 	"time"
 )
 
+var (
+	DockerBuild = flag.Bool("docker", false, "build in docker")
+)
+
 func main() {
+	flag.Parse()
+
 	// 获取git版本
 	gitVersion, err := exec.Command("git", "describe", "--tags", "--always", "--dirty").Output()
 	if err != nil {
@@ -55,7 +62,12 @@ func main() {
 		goarch = runtime.GOARCH
 	}
 
-	outputName := fmt.Sprintf("fsd-%s-%s-%s", goos, goarch, string(gitCommit[:7]))
+	var outputName string
+	if *DockerBuild {
+		outputName = "fsd"
+	} else {
+		outputName = fmt.Sprintf("fsd-%s-%s-%s", goos, goarch, string(gitCommit[:7]))
+	}
 	if goos == "windows" {
 		outputName += ".exe"
 	}
@@ -77,23 +89,40 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println("Build completed successfully!")
+	fmt.Println("Build completed.")
 
+	if *DockerBuild {
+		fmt.Println("Output file:", outputName)
+		return
+	}
+
+	compressBinary(outputName)
+	compressZip(outputName, goos)
+
+	fmt.Println("Output file:", outputName)
+	fmt.Println("Zip file:", fmt.Sprintf("%s.zip", goos))
+	return
+}
+
+func compressBinary(outputName string) {
 	fmt.Println("Compressing binary...")
 
-	_, err = exec.Command("upx", "--version").Output()
+	_, err := exec.Command("upx", "--version").Output()
 	if err != nil {
 		fmt.Println("upx not found, skipping compression")
 	} else {
-		cmd = exec.Command("upx", "-fq", "-9", outputName)
+		cmd := exec.Command("upx", "-fq", "-9", outputName)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
 			fmt.Printf("Compression failed: %v\n", err)
 			os.Exit(1)
 		}
+		fmt.Println("Compression completed.")
 	}
+}
 
+func compressZip(outputName string, goos string) {
 	zipFile, err := os.Create(fmt.Sprintf("%s.zip", goos))
 	if err != nil {
 		fmt.Printf("Failed to create zip file: %v\n", err)
@@ -128,8 +157,5 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println("Zip file created successfully!")
-
-	fmt.Println("Output file:", outputName)
-	fmt.Println("Zip file:", fmt.Sprintf("%s.zip", goos))
+	fmt.Println("Zip file created.")
 }
