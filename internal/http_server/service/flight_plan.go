@@ -12,6 +12,7 @@ import (
 	"github.com/half-nothing/simple-fsd/internal/interfaces/log"
 	"github.com/half-nothing/simple-fsd/internal/interfaces/operation"
 	"github.com/half-nothing/simple-fsd/internal/interfaces/queue"
+	"github.com/half-nothing/simple-fsd/internal/utils"
 )
 
 type FlightPlanService struct {
@@ -41,6 +42,11 @@ func NewFlightPlanService(
 func (flightPlanService *FlightPlanService) SubmitFlightPlan(req *RequestSubmitFlightPlan) *ApiResponse[bool] {
 	if req.FlightPlan == nil {
 		return NewApiResponse(ErrIllegalParam, false)
+	}
+
+	if utils.ContainsChinese(req.FlightPlan.Route) ||
+		utils.ContainsChinese(req.FlightPlan.Remarks) {
+		return NewApiResponse(ErrChineseNotSupported, false)
 	}
 
 	if flightPlan, err := flightPlanService.flightPlanOperation.GetFlightPlanByCid(req.JwtHeader.Cid); err != nil {

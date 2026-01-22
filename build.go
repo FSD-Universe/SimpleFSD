@@ -38,10 +38,12 @@ func main() {
 		"-X 'github.com/half-nothing/simple-fsd/internal/interfaces/global.GitVersion=%s'",
 	}
 
-	ldflags := fmt.Sprintf(strings.Join(flags, " "),
+	ldflags := fmt.Sprintf(
+		strings.Join(flags, " "),
 		buildTime,
 		strings.TrimSpace(string(gitCommit)),
-		strings.TrimSpace(string(gitVersion)))
+		strings.TrimSpace(string(gitVersion)),
+	)
 
 	goos := os.Getenv("GOOS")
 	if goos == "" {

@@ -202,6 +202,7 @@ func TextResponse(ctx echo.Context, httpCode int, content string) error {
 }
 
 var (
+	ErrChineseNotSupported   = NewApiStatus("CHINESE_NOT_SUPPORTED", "不支持中文字符", BadRequest)
 	ErrIllegalParam          = NewApiStatus("PARAM_ERROR", "参数不正确", BadRequest)
 	ErrParseParam            = NewApiStatus("PARAM_PARSE_ERROR", "参数解析错误", BadRequest)
 	ErrNoPermission          = NewApiStatus("NO_PERMISSION", "无权这么做", PermissionDenied)
