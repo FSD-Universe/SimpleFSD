@@ -6,7 +6,7 @@ ENV GO111MODULE=on
 ENV CGO_ENABLED=1
 
 RUN apk update
-RUN apk --no-cache add gcc musl-dev
+RUN apk --no-cache add gcc musl-dev git
 
 COPY go.mod go.sum ./
 
