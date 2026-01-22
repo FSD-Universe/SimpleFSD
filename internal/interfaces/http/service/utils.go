@@ -56,7 +56,7 @@ type ApiResponse[T any] struct {
 type TokenType int
 
 const (
-	MainToken TokenType = 1 << iota
+	MainToken TokenType = iota
 	MainRefreshToken
 	OAuth2Token
 )
@@ -102,7 +102,9 @@ func (content *EchoContentHeader) SetIp(ip string) { content.Ip = ip }
 func (content *EchoContentHeader) SetUserAgent(ua string) { content.UserAgent = ua }
 
 type JwtHeader struct {
+	TokenType  TokenType
 	Uid        uint
+	Scopes     string
 	Permission uint64
 	Cid        int
 	Rating     int
@@ -115,6 +117,10 @@ func (jwt *JwtHeader) SetCid(cid int) { jwt.Cid = cid }
 func (jwt *JwtHeader) SetPermission(permission uint64) { jwt.Permission = permission }
 
 func (jwt *JwtHeader) SetRating(rating int) { jwt.Rating = rating }
+
+func (jwt *JwtHeader) SetTokenType(tokenType TokenType) { jwt.TokenType = tokenType }
+
+func (jwt *JwtHeader) SetScopes(scopes string) { jwt.Scopes = scopes }
 
 func NewClaims(config *config.JWTConfig, user *operation.User, tokenType TokenType) *Claims {
 	var expiredDuration time.Duration

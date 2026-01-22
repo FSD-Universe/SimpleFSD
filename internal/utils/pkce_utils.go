@@ -49,6 +49,8 @@ func (g *PKCE) GenerateCodeChallenge() {
 	case Plain:
 		g.codeChallenge = g.codeVerifier
 	case S256:
+		fallthrough
+	default:
 		hash := sha256.Sum256([]byte(g.codeVerifier))
 		g.codeChallenge = base64.RawURLEncoding.EncodeToString(hash[:])
 	}

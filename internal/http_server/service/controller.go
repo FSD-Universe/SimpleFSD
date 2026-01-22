@@ -189,15 +189,16 @@ func (controllerService *ControllerService) UpdateControllerRating(req *RequestU
 		updateInfo["tier2"] = req.Tier2
 	}
 
-	if targetUser.UnderSolo != req.UnderSolo || (targetUser.UnderSolo && targetUser.SoloUntil.Equal(req.SoloUntil)) {
+	if targetUser.UnderSolo != req.UnderSolo ||
+		(targetUser.UnderSolo && !targetUser.SoloUntil.Equal(req.SoloUntil)) {
 		if res := CheckPermission[bool](user.Permission, operation.ControllerChangeSolo); res != nil {
 			return res
 		}
 		updateInfo["under_solo"] = req.UnderSolo
 		if req.UnderSolo {
-			updateInfo["solo_until"] = req.SoloUntil
+			updateInfo["solo_until"] = &req.SoloUntil
 		} else {
-			updateInfo["solo_until"] = time.UnixMicro(0)
+			updateInfo["solo_until"] = nil
 		}
 	}
 

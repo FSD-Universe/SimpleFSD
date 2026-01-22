@@ -124,7 +124,7 @@ type AuthorizeRequest struct {
 type AuthorizationRequest struct {
 	JwtHeader
 	ID       uint  `param:"id"`
-	Approved *bool `query:"approved" json:"approved" form:"approved"`
+	Approved *bool `json:"approved"`
 }
 
 type TokenRequest struct {

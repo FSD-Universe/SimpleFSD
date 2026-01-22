@@ -18,9 +18,6 @@ type OAuth2Client struct {
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 	DeletedAt    gorm.DeletedAt
-
-	Codes  []*OAuth2AuthorizationCode `gorm:"foreignKey:ClientID;references:ClientID;constraint:OnUpdate:cascade,OnDelete:cascade"`
-	Tokens []*OAuth2Token             `gorm:"foreignKey:ClientID;references:ClientID;constraint:OnUpdate:cascade,OnDelete:cascade"`
 }
 
 // OAuth2AuthorizationCode OAuth2授权码
@@ -37,7 +34,7 @@ type OAuth2AuthorizationCode struct {
 	Challenge   string    `gorm:"size:128;not null"`            // PKCE challenge
 	CreatedAt   time.Time
 
-	Client *OAuth2Client `gorm:"foreignKey:ClientID;references:ClientID;constraint:OnUpdate:cascade,OnDelete:cascade"`
+	Client *OAuth2Client `gorm:"references:ClientID;constraint:OnUpdate:cascade,OnDelete:cascade"`
 }
 
 // OAuth2Token OAuth2访问令牌
@@ -47,12 +44,12 @@ type OAuth2Token struct {
 	UserID       uint      `gorm:"index;not null"`         // 用户ID
 	TokenType    string    `gorm:"size:32;not null"`       // 令牌类型
 	Scopes       string    `gorm:"type:text;not null"`     // 授权范围
-	RefreshToken string    `gorm:"uniqueIndex"`            // 刷新令牌
+	RefreshToken string    `gorm:"size:32;uniqueIndex"`    // 刷新令牌
 	ExpiresAt    time.Time `gorm:"not null"`               // 过期时间
 	CreatedAt    time.Time
 
-	User   *User         `gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:cascade,OnDelete:cascade"`
-	Client *OAuth2Client `gorm:"foreignKey:ClientID;references:ClientID;constraint:OnUpdate:cascade,OnDelete:cascade"`
+	User   *User         `gorm:"references:ID;constraint:OnUpdate:cascade,OnDelete:cascade"`
+	Client *OAuth2Client `gorm:"references:ClientID;constraint:OnUpdate:cascade,OnDelete:cascade"`
 }
 
 // OAuth2OperationInterface OAuth2操作接口

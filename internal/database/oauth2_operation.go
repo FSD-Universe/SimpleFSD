@@ -68,7 +68,7 @@ func (o *OAuth2Operation) GetClientPage(pageNumber int, pageSize int) (clients [
 	defer cancel()
 
 	o.db.WithContext(ctx).Model(&OAuth2Client{}).Select("id").Count(&total)
-	err = o.db.WithContext(ctx).Offset((pageNumber - 1) * pageSize).Order("cid").Limit(pageSize).Find(&clients).Error
+	err = o.db.WithContext(ctx).Offset((pageNumber - 1) * pageSize).Order("id").Limit(pageSize).Find(&clients).Error
 	return
 }
 
@@ -131,6 +131,12 @@ func (o *OAuth2Operation) GetAuthorizationCodeById(id uint) (*OAuth2Authorizatio
 		o.logger.ErrorF("Failed to get authorization code: %v", err)
 		return nil, err
 	}
+
+	if authCode.ExpiresAt.Before(time.Now()) {
+		_ = o.DeleteAuthorizationCode(authCode.Code)
+		return nil, gorm.ErrRecordNotFound
+	}
+
 	return authCode, nil
 }
 

@@ -49,14 +49,14 @@ func NewOAuth2Service(
 }
 
 func (s *OAuth2Service) generateCode(length int) string {
-	seed := []byte(fmt.Sprintf("%d", time.Now().UnixNano()))
-	b := make([]byte, length)
-	_, err := rand.Read(b)
-	if err != nil {
-		return base64.URLEncoding.EncodeToString(seed)[:length]
+	bytesNeeded := (length*3 + 3) / 4
+	b := make([]byte, bytesNeeded)
+	if _, err := rand.Read(b); err != nil {
+		s.logger.ErrorF("Failed to generate random code: %v", err)
+		// 降级方案：使用时间戳作为种子
+		return base64.URLEncoding.EncodeToString([]byte(fmt.Sprintf("%d", time.Now().UnixNano())))[:length]
 	}
-	seed = append(seed, b...)
-	return base64.URLEncoding.EncodeToString(seed)[:length]
+	return base64.URLEncoding.EncodeToString(b)[:length]
 }
 
 var SuccessCreateClient = NewApiStatus("SUCCESS_CREATE_CLIENT", "客户端创建成功", Ok)
@@ -95,6 +95,7 @@ func (s *OAuth2Service) CreateClient(req *CreateClientRequest) *ApiResponse[*Cli
 	return NewApiResponse[*ClientInfo](SuccessCreateClient, &ClientInfo{
 		ID:           client.ID,
 		ClientID:     client.ClientID,
+		ClientSecret: client.ClientSecret,
 		Name:         client.Name,
 		RedirectURIs: req.RedirectURIs,
 		Scopes:       req.Scopes,
@@ -120,6 +121,7 @@ func (s *OAuth2Service) GetClients(req *GetClientsPageRequest) *ApiResponse[*Pag
 		clientInfos = append(clientInfos, &ClientInfo{
 			ID:           client.ID,
 			ClientID:     client.ClientID,
+			ClientSecret: client.ClientSecret,
 			Name:         client.Name,
 			RedirectURIs: client.RedirectURIs,
 			Scopes:       client.Scopes,
@@ -201,6 +203,7 @@ func (s *OAuth2Service) UpdateClient(req *UpdateClientRequest) *ApiResponse[*Cli
 	return NewApiResponse[*ClientInfo](SuccessUpdateClient, &ClientInfo{
 		ID:           client.ID,
 		ClientID:     client.ClientID,
+		ClientSecret: client.ClientSecret,
 		Name:         client.Name,
 		RedirectURIs: client.RedirectURIs,
 		Scopes:       client.Scopes,
@@ -299,6 +302,12 @@ func (s *OAuth2Service) Authorization(req *AuthorizationRequest) (*OAuth2ErrorRe
 	code, err := s.oauth2Operation.GetAuthorizationCodeById(req.ID)
 	if err != nil {
 		s.logger.ErrorF("Failed to get authorization code: %v", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return &OAuth2ErrorResponse{
+				ErrorCode:        OAuth2ErrCodeExpired.ErrorCode,
+				ErrorDescription: OAuth2ErrCodeExpired.ErrorDescription,
+			}, "", nil
+		}
 		return &OAuth2ErrorResponse{
 			ErrorCode:        OAuth2ErrServerError.ErrorCode,
 			ErrorDescription: OAuth2ErrServerError.ErrorDescription,
@@ -323,15 +332,29 @@ func (s *OAuth2Service) Authorization(req *AuthorizationRequest) (*OAuth2ErrorRe
 		}, code.RedirectURI, nil
 	}
 
+	if !*req.Approved {
+		return &OAuth2ErrorResponse{
+			ErrorCode:        OAuth2ErrAccessDenied.ErrorCode,
+			ErrorDescription: OAuth2ErrAccessDenied.ErrorDescription,
+		}, code.RedirectURI, nil
+	}
+
 	return nil, code.RedirectURI, code
 }
 
 func (s *OAuth2Service) authorizationCode(req *TokenRequest) (*TokenResponse, *OAuth2ErrorResponse) {
 	authCode, err := s.oauth2Operation.GetAuthorizationCode(req.Code)
 	if err != nil {
+		s.logger.ErrorF("Failed to get authorization code: %v", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, &OAuth2ErrorResponse{
+				ErrorCode:        OAuth2ErrCodeExpired.ErrorCode,
+				ErrorDescription: OAuth2ErrCodeExpired.ErrorDescription,
+			}
+		}
 		return nil, &OAuth2ErrorResponse{
-			ErrorCode:        OAuth2ErrCodeExpired.ErrorCode,
-			ErrorDescription: OAuth2ErrCodeExpired.ErrorDescription,
+			ErrorCode:        OAuth2ErrServerError.ErrorCode,
+			ErrorDescription: OAuth2ErrServerError.ErrorDescription,
 		}
 	}
 

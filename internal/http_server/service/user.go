@@ -141,6 +141,10 @@ func (userService *UserService) CheckAvailability(req *RequestUserAvailability) 
 }
 
 func (userService *UserService) GetCurrentProfile(req *RequestUserCurrentProfile) *ApiResponse[ResponseUserCurrentProfile] {
+	if req.TokenType == OAuth2Token && !strings.Contains(req.Scopes, string(config.ScopeProfile)) {
+		return NewApiResponse[ResponseUserCurrentProfile](ErrNoPermission, nil)
+	}
+
 	user, res := CallDBFunc[*operation.User, ResponseUserCurrentProfile](func() (*operation.User, error) {
 		return userService.userOperation.GetUserByUid(req.Uid)
 	})
@@ -152,7 +156,18 @@ func (userService *UserService) GetCurrentProfile(req *RequestUserCurrentProfile
 		return NewApiResponse[ResponseUserCurrentProfile](ErrAccountSuspended, nil)
 	}
 
-	return NewApiResponse(SuccessGetCurrentProfile, user)
+	if req.TokenType == MainToken {
+		return NewApiResponse(SuccessGetCurrentProfile, user)
+	}
+
+	data := &operation.User{
+		Username: user.Username,
+		Email:    user.Email,
+		Cid:      user.Cid,
+		QQ:       user.QQ,
+	}
+
+	return NewApiResponse(SuccessGetCurrentProfile, data)
 }
 
 func checkQQ(qq int) *ApiStatus {

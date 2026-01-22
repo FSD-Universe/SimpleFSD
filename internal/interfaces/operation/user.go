@@ -10,22 +10,22 @@ import (
 )
 
 type User struct {
-	ID                uint                `gorm:"primarykey" json:"id"`
+	ID                uint                `gorm:"primarykey" json:"id,omitempty"`
 	Username          string              `gorm:"size:64;uniqueIndex;not null" json:"username"`
 	Email             string              `gorm:"size:128;uniqueIndex;not null" json:"email"`
 	Cid               int                 `gorm:"uniqueIndex;not null" json:"cid"`
 	Password          string              `gorm:"size:128;not null" json:"-"`
-	AvatarUrl         string              `gorm:"size:128;not null;default:''" json:"avatar_url"`
+	AvatarUrl         string              `gorm:"size:128;not null;default:''" json:"avatar_url,omitempty"`
 	QQ                int                 `gorm:"default:0" json:"qq"`
-	Rating            int                 `gorm:"default:0" json:"rating"`
-	Guest             bool                `gorm:"default:false" json:"guest"`
-	UnderMonitor      bool                `gorm:"default:false;not null" json:"under_monitor"`
-	UnderSolo         bool                `gorm:"default:false;not null" json:"under_solo"`
-	Tier2             bool                `gorm:"default:false;not null" json:"tier2"`
-	SoloUntil         time.Time           `gorm:"default:null" json:"solo_until"`
-	Permission        uint64              `gorm:"default:0" json:"permission"`
-	TotalPilotTime    int                 `gorm:"default:0" json:"total_pilot_time"`
-	TotalAtcTime      int                 `gorm:"default:0" json:"total_atc_time"`
+	Rating            int                 `gorm:"default:0" json:"rating,omitempty"`
+	Guest             bool                `gorm:"default:false" json:"guest,omitempty"`
+	UnderMonitor      bool                `gorm:"default:false;not null" json:"under_monitor,omitempty"`
+	UnderSolo         bool                `gorm:"default:false;not null" json:"under_solo,omitempty"`
+	Tier2             bool                `gorm:"default:false;not null" json:"tier2,omitempty"`
+	SoloUntil         *time.Time          `gorm:"default:null" json:"solo_until,omitempty"`
+	Permission        uint64              `gorm:"default:0" json:"permission,omitempty"`
+	TotalPilotTime    int                 `gorm:"default:0" json:"total_pilot_time,omitempty"`
+	TotalAtcTime      int                 `gorm:"default:0" json:"total_atc_time,omitempty"`
 	FlightPlans       []*FlightPlan       `gorm:"foreignKey:Cid;references:Cid;constraint:OnUpdate:cascade,OnDelete:cascade;" json:"-"`
 	OnlineHistories   []*History          `gorm:"foreignKey:Cid;references:Cid;constraint:OnUpdate:cascade,OnDelete:cascade;" json:"-"`
 	ActivityAtc       []*ActivityATC      `gorm:"foreignKey:UserId;references:ID;constraint:OnUpdate:cascade,OnDelete:cascade;" json:"-"`
@@ -33,7 +33,7 @@ type User struct {
 	AuditLogs         []*AuditLog         `gorm:"foreignKey:Subject;references:Cid;constraint:OnUpdate:cascade,OnDelete:cascade;" json:"-"`
 	ControllerRecords []*ControllerRecord `gorm:"foreignKey:UserId;references:ID;constraint:OnUpdate:cascade,OnDelete:cascade;" json:"-"`
 	Tickets           []*Ticket           `gorm:"foreignKey:UserId;references:ID;constraint:OnUpdate:cascade,OnDelete:cascade;" json:"-"`
-	CreatedAt         time.Time           `json:"register_time"`
+	CreatedAt         *time.Time          `json:"register_time,omitempty"`
 	UpdatedAt         time.Time           `json:"-"`
 }
 

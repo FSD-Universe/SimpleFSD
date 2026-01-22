@@ -161,6 +161,8 @@ func (c *OAuth2Controller) Authorize(ctx echo.Context) error {
 		query.Set("scopes", code.Scopes)
 		authorizationPage.RawQuery = query.Encode()
 
+		c.logger.InfoF("Authorize redirect to %s", authorizationPage.String())
+
 		return ctx.Redirect(Found.Code(), authorizationPage.String())
 	}
 
@@ -177,6 +179,19 @@ func (c *OAuth2Controller) Authorization(ctx echo.Context) error {
 		})
 	}
 
+	if req.Approved == nil {
+		c.logger.ErrorF("Authorization approved error")
+		return NewJsonResponse(ctx, BadRequest, &OAuth2ErrorResponse{
+			ErrorCode:        OAuth2ErrInvalidRequest.ErrorCode,
+			ErrorDescription: "Missing approved",
+		})
+	}
+
+	if err := SetJwtInfo(req, ctx); err != nil {
+		c.logger.ErrorF("Authorization jwt token parse error: %v", err)
+		return NewErrorResponse(ctx, ErrParseParam)
+	}
+
 	res, redirectURI, code := c.oauth2Service.Authorization(req)
 	if res == nil {
 		uri, _ := url.Parse(redirectURI)
@@ -186,11 +201,14 @@ func (c *OAuth2Controller) Authorization(ctx echo.Context) error {
 			query.Set("state", code.State)
 		}
 		uri.RawQuery = query.Encode()
+		c.logger.InfoF("Authorization redirect to %s", uri.String())
 		return ctx.Redirect(Found.Code(), uri.String())
 	}
 
 	if redirectURI != "" {
-		return ctx.Redirect(Found.Code(), res.BuildErrorURL(redirectURI))
+		uri := res.BuildErrorURL(redirectURI)
+		c.logger.InfoF("Authorization redirect to %s", uri)
+		return ctx.Redirect(Found.Code(), uri)
 	}
 
 	return NewJsonResponse(ctx, BadRequest, res)
@@ -220,6 +238,11 @@ func (c *OAuth2Controller) Revoke(ctx echo.Context) error {
 			ErrorCode:        OAuth2ErrInvalidRequest.ErrorCode,
 			ErrorDescription: "Invalid request body",
 		})
+	}
+
+	if err := SetJwtInfo(req, ctx); err != nil {
+		c.logger.ErrorF("Revoke jwt token parse error: %v", err)
+		return NewErrorResponse(ctx, ErrParseParam)
 	}
 
 	if err := c.oauth2Service.Revoke(req); err != nil {

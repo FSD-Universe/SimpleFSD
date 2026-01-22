@@ -14,6 +14,8 @@ type JwtInfoSetter interface {
 	SetCid(cid int)
 	SetPermission(permission uint64)
 	SetRating(rating int)
+	SetTokenType(tokenType service.TokenType)
+	SetScopes(scopes string)
 }
 
 func SetJwtInfo[T JwtInfoSetter](data T, ctx echo.Context) error {
@@ -29,6 +31,8 @@ func SetJwtInfo[T JwtInfoSetter](data T, ctx echo.Context) error {
 	data.SetUid(claim.Uid)
 	data.SetCid(claim.Cid)
 	data.SetRating(claim.Rating)
+	data.SetTokenType(service.TokenType(claim.TokenType))
+	data.SetScopes(claim.Scopes)
 	return nil
 }
 

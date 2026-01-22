@@ -82,14 +82,14 @@ type RequestControllerRatingList struct {
 }
 
 type ControllerRating struct {
-	Cid          int       `json:"cid"`
-	Rating       int       `json:"rating"`
-	AvatarUrl    string    `json:"avatar_url"`
-	UnderMonitor bool      `json:"under_monitor"`
-	UnderSolo    bool      `json:"under_solo"`
-	SoloUntil    time.Time `json:"solo_until"`
-	Tier2        bool      `json:"tier2"`
-	IsGuest      bool      `json:"is_guest"`
+	Cid          int        `json:"cid"`
+	Rating       int        `json:"rating"`
+	AvatarUrl    string     `json:"avatar_url"`
+	UnderMonitor bool       `json:"under_monitor"`
+	UnderSolo    bool       `json:"under_solo"`
+	SoloUntil    *time.Time `json:"solo_until"`
+	Tier2        bool       `json:"tier2"`
+	IsGuest      bool       `json:"is_guest"`
 }
 
 type ResponseControllerRatingList = *PageResponse[*ControllerRating]
