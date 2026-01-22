@@ -30,7 +30,11 @@ func NewClientController(logger log.LoggerInterface, clientService ClientService
 }
 
 func (controller *ClientController) GetOnlineClients(ctx echo.Context) error {
-	return ctx.JSON(http.StatusOK, controller.clientService.GetOnlineClients())
+	data := controller.clientService.GetOnlineClients()
+	if data == nil {
+		return NewErrorResponse(ctx, ErrMarshalJson)
+	}
+	return ctx.JSONBlob(http.StatusOK, data)
 }
 
 func (controller *ClientController) GetClientPath(ctx echo.Context) error {

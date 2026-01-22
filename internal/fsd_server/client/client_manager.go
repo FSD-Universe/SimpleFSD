@@ -26,7 +26,7 @@ type ClientManager struct {
 	config            *config.Config
 	clientSlicePool   sync.Pool
 	messageQueue      queue.MessageQueueInterface
-	whazzupContent    *utils.CachedValue[OnlineClients]
+	whazzupContent    *utils.CachedValue[*OnlineClients]
 }
 
 func NewClientManager(
@@ -48,7 +48,7 @@ func NewClientManager(
 			},
 		},
 	}
-	clientManager.whazzupContent = utils.NewCachedValue[OnlineClients](config.Server.FSDServer.CacheDuration, func() *OnlineClients { return clientManager.getWhazzupContent() })
+	clientManager.whazzupContent = utils.NewCachedValue(config.Server.FSDServer.CacheDuration, func() *OnlineClients { return clientManager.getWhazzupContent() })
 	return clientManager
 }
 
@@ -191,6 +191,10 @@ func (cm *ClientManager) HandleKickClientFromServerMessage(message *queue.Messag
 		return err
 	}
 	return queue.ErrMessageDataType
+}
+
+func (cm *ClientManager) GetWhazzupCacheTime() time.Duration {
+	return cm.config.Server.FSDServer.CacheDuration
 }
 
 func (cm *ClientManager) GetWhazzupContent() *OnlineClients {

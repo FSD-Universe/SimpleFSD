@@ -16,6 +16,7 @@ var (
 )
 
 type ClientManagerInterface interface {
+	GetWhazzupCacheTime() time.Duration
 	GetWhazzupContent() *OnlineClients
 	Shutdown(ctx context.Context) error
 	GetClientSnapshot() []ClientInterface

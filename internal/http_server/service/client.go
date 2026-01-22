@@ -3,6 +3,7 @@
 package service
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/half-nothing/simple-fsd/internal/interfaces/log"
 	"github.com/half-nothing/simple-fsd/internal/interfaces/operation"
 	"github.com/half-nothing/simple-fsd/internal/interfaces/queue"
+	"github.com/half-nothing/simple-fsd/internal/utils"
 )
 
 type ClientService struct {
@@ -22,6 +24,7 @@ type ClientService struct {
 	config            *config.HttpServerConfig
 	userOperation     operation.UserOperationInterface
 	auditLogOperation operation.AuditLogOperationInterface
+	whazzupContent    *utils.CachedValue[[]byte]
 }
 
 func NewClientService(
@@ -40,11 +43,23 @@ func NewClientService(
 		auditLogOperation: auditLogOperation,
 		messageQueue:      messageQueue,
 	}
+	service.whazzupContent = utils.NewCachedValue(clientManager.GetWhazzupCacheTime(), service.getWhazzupContent)
 	return service
 }
 
-func (clientService *ClientService) GetOnlineClients() *fsd.OnlineClients {
-	return clientService.clientManager.GetWhazzupContent()
+func (clientService *ClientService) getWhazzupContent() []byte {
+	data := clientService.clientManager.GetWhazzupContent()
+	jsonBlob, err := json.Marshal(data)
+	if err != nil {
+		clientService.logger.ErrorF("marshal whazzup content failed: %v", err)
+		clientService.logger.ErrorF("whazzup content: %#v", data)
+		return nil
+	}
+	return jsonBlob
+}
+
+func (clientService *ClientService) GetOnlineClients() []byte {
+	return clientService.whazzupContent.GetValue()
 }
 
 func (clientService *ClientService) SendMessageToClient(req *RequestSendMessageToClient) *ApiResponse[bool] {

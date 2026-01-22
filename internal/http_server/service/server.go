@@ -17,9 +17,9 @@ type ServerService struct {
 	userOperation       operation.UserOperationInterface
 	controllerOperation operation.ControllerOperationInterface
 	activityOperation   operation.ActivityOperationInterface
-	serverConfig        *utils.CachedValue[ResponseGetServerConfig]
-	serverInfo          *utils.CachedValue[ResponseGetServerInfo]
-	serverOnlineTime    *utils.CachedValue[ResponseGetTimeRating]
+	serverConfig        *utils.CachedValue[*ResponseGetServerConfig]
+	serverInfo          *utils.CachedValue[*ResponseGetServerInfo]
+	serverOnlineTime    *utils.CachedValue[*ResponseGetTimeRating]
 }
 
 func NewServerService(
@@ -36,9 +36,9 @@ func NewServerService(
 		controllerOperation: controllerOperation,
 		activityOperation:   activityOperation,
 	}
-	service.serverConfig = utils.NewCachedValue[ResponseGetServerConfig](0, func() *ResponseGetServerConfig { return service.getServerConfig() })
-	service.serverInfo = utils.NewCachedValue[ResponseGetServerInfo](config.FSDServer.CacheDuration, func() *ResponseGetServerInfo { return service.getServerInfo() })
-	service.serverOnlineTime = utils.NewCachedValue[ResponseGetTimeRating](config.FSDServer.CacheDuration, func() *ResponseGetTimeRating { return service.getTimeRating() })
+	service.serverConfig = utils.NewCachedValue(0, func() *ResponseGetServerConfig { return service.getServerConfig() })
+	service.serverInfo = utils.NewCachedValue(config.FSDServer.CacheDuration, func() *ResponseGetServerInfo { return service.getServerInfo() })
+	service.serverOnlineTime = utils.NewCachedValue(config.FSDServer.CacheDuration, func() *ResponseGetTimeRating { return service.getTimeRating() })
 	return service
 }
 

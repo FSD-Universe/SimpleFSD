@@ -15,7 +15,7 @@ var (
 )
 
 type ClientServiceInterface interface {
-	GetOnlineClients() *fsd.OnlineClients
+	GetOnlineClients() []byte
 	SendMessageToClient(req *RequestSendMessageToClient) *ApiResponse[bool]
 	KillClient(req *RequestKillClient) *ApiResponse[bool]
 	GetClientFlightPath(req *RequestClientPath) *ApiResponse[[]*fsd.PilotPath]

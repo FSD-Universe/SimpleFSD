@@ -52,7 +52,7 @@ func saveConfig(config *Config) error {
 }
 
 type Manager struct {
-	config *utils.CachedValue[Config]
+	config *utils.CachedValue[*Config]
 	logger log.LoggerInterface
 }
 
