@@ -23,6 +23,14 @@ var (
 func main() {
 	flag.Parse()
 
+	if *DockerBuild {
+		fmt.Printf("Git status output:\n")
+		cmd := exec.Command("git", "status", "--porcelain")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		_ = cmd.Run()
+	}
+
 	// 获取git版本
 	gitVersion, err := exec.Command("git", "describe", "--tags", "--always", "--dirty").Output()
 	if err != nil {
