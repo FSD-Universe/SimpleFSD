@@ -80,8 +80,8 @@ func main() {
 	checkDurationEnv(global.EnvWebsocketTimeout, global.WebsocketTimeout)
 	checkIntEnv(global.EnvWebsocketMessageChannelSize, global.WebsocketMessageChannelSize, 128)
 
-	if !*global.Vatsim {
-		*global.VatsimFull = false
+	if *global.VatsimFull {
+		*global.Vatsim = true
 	}
 
 	defer recoverFromError()
@@ -192,7 +192,7 @@ func main() {
 
 	if config.Server.VoiceServer.Enabled {
 		voiceServer := voice_server.NewVoiceServer(applicationContent)
-		go voiceServer.Start()
+		go func() { _ = voiceServer.Start() }()
 	}
 
 	//if config.Server.GRPCServer.Enabled {
