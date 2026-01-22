@@ -70,7 +70,7 @@ func (content *CommandContent) verifyVatsimUserInfo(session SessionInterface, ca
 
 	user, err := cid.GetUser(content.userOperation)
 	if err != nil {
-		return ResultError(InvalidCidPassword, true, callsign, err)
+		return ResultError(InvalidClient, true, callsign, err)
 	}
 	if user.Rating <= Ban.Index() {
 		return ResultError(CidSuspended, true, callsign, nil)
@@ -145,7 +145,13 @@ func (content *CommandContent) HandleVatsimAddAtc(session SessionInterface, data
 	callsign := data[0]
 	cid := operation.GetUserId(data[3])
 	if result := content.verifyVatsimUserInfo(session, callsign, cid, data[4]); result != nil {
-		return result
+		if result.Errno == CallsignInUse || result.Errno == InvalidClient || result.Errno == CidSuspended {
+			return result
+		}
+		r := content.verifyFsdUserInfo(session, callsign, 9, cid, data[4])
+		if r != nil {
+			return result
+		}
 	}
 	reqRating := utils.StrToInt(data[5], 0)
 	if result := content.checkRatingAndFacility(session, reqRating, callsign); result != nil {
