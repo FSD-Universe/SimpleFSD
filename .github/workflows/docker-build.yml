@@ -38,7 +38,6 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          push: true
-          tags: halfnothing/fsd:latest
+        run: |
+          docker build -t halfnothing/fsd:latest .
+          docker push halfnothing/fsd:latest
