@@ -1,7 +1,10 @@
 // Package command
 package command
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 const (
 	CallsignMinLen = 3
@@ -9,18 +12,18 @@ const (
 	ForbiddenChars = "!@#$%*:& \t"
 )
 
-var validSuffix = [6]string{"DEL", "GND", "TWR", "APP", "CTR", "FSS"}
+var validSuffix = []string{"DEL", "GND", "RMP", "TWR", "APP", "CTR", "FSS", "ATIS"}
 
 func isValidAtc(callsign string) bool {
 	if !callsignValid(callsign) {
 		return false
 	}
-	for _, prefix := range validSuffix {
-		if strings.HasSuffix(callsign, prefix) {
-			return true
-		}
+	d := strings.Split(callsign, "_")
+	if len(d) == 1 {
+		return false
 	}
-	return false
+	suffix := d[len(d)-1]
+	return slices.Contains(validSuffix, suffix)
 }
 
 func callsignValid(callsign string) bool {
