@@ -47,7 +47,11 @@ func StartFSDServer(applicationContent *ApplicationContent) {
 
 	serverName := "FSD"
 	if *global.Vatsim {
-		serverName = "VATSIM FSD"
+		if *global.VatsimFull && config.Server.General.SimulatorServer {
+			serverName = "VATSIM SWEATBOX FSD"
+		} else {
+			serverName = "VATSIM FSD"
+		}
 	}
 
 	sem := make(chan struct{}, config.Server.FSDServer.MaxWorkers)
@@ -107,7 +111,13 @@ func StartFSDServer(applicationContent *ApplicationContent) {
 
 	commandHandler.GeneratePossibleCommands()
 
-	sessionContent := packet.NewSessionContent(logger, commandHandler, applicationContent.ClientManager(), config.Server.FSDServer.HeartbeatDuration)
+	sessionContent := packet.NewSessionContent(
+		logger,
+		commandHandler,
+		applicationContent.ClientManager(),
+		config.Server.FSDServer.HeartbeatDuration,
+		config.Server.General.SimulatorServer,
+	)
 
 	for {
 		conn, err := ln.Accept()

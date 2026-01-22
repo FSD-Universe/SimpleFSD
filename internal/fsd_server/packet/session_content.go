@@ -19,6 +19,7 @@ type SessionContent struct {
 	commandHandler   CommandHandlerInterface
 	clientManager    ClientManagerInterface
 	heartbeatTimeout time.Duration
+	simulatorServer  bool
 	possibleCommands [][]byte
 	pool             *sync.Pool
 }
@@ -28,6 +29,7 @@ func NewSessionContent(
 	commandHandler CommandHandlerInterface,
 	clientManager ClientManagerInterface,
 	heartbeatTimeout time.Duration,
+	simulatorServer bool,
 ) *SessionContent {
 	content := &SessionContent{
 		logger:           log.NewLoggerAdapter(logger, "SessionManager"),
@@ -37,6 +39,7 @@ func NewSessionContent(
 		pool: &sync.Pool{New: func() interface{} {
 			return make([]byte, 1<<12) // 4KB
 		}},
+		simulatorServer: simulatorServer,
 	}
 	content.possibleCommands = commandHandler.GetPossibleCommands()
 	return content
@@ -121,7 +124,11 @@ func (content *SessionContent) HandleConnection(session *Session) {
 	}()
 
 	if *global.Vatsim {
-		_, _ = session.conn.Write([]byte("$DISERVER:CLIENT:VATSIM FSD V3.53a:0815b2e12302\r\n"))
+		if content.simulatorServer && *global.VatsimFull {
+			_, _ = session.conn.Write([]byte("$DISERVER:CLIENT:VATSIM FSD Sweatbox V3.42f:c8c46fcb3f1ac7334769fa\r\n"))
+		} else {
+			_, _ = session.conn.Write([]byte("$DISERVER:CLIENT:VATSIM FSD V3.53a:14d0434b96\r\n"))
+		}
 	}
 	scanner := bufio.NewScanner(session.conn)
 	scanner.Split(createSplitFunc(SplitSign))

@@ -137,7 +137,6 @@ func main() {
 		mainLogger.FatalF("Error occurred while initializing operation, details: %v", err)
 		return
 	}
-
 	cleaner.Add(shutdownCallback)
 
 	mainLogger.InfoF("Initialize message queue with channel size %d", *global.MessageQueueChannelSize)
