@@ -7,6 +7,7 @@ ENV CGO_ENABLED=1
 
 RUN apk update
 RUN apk --no-cache add gcc musl-dev git
+RUN git clean -fdx
 
 COPY go.mod go.sum ./
 
