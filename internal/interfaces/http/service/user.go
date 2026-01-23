@@ -83,6 +83,13 @@ type RequestUserCurrentProfile struct {
 	JwtHeader
 }
 
+type OAuth2User struct {
+	Username string `json:"username"`
+	Email    string `json:"email"`
+	Cid      int    `json:"cid"`
+	QQ       int    `json:"qq"`
+}
+
 type ResponseUserCurrentProfile = *operation.User
 
 type RequestUserEditCurrentProfile struct {

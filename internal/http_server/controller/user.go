@@ -72,7 +72,22 @@ func (controller *UserController) GetCurrentUserProfile(ctx echo.Context) error 
 		controller.logger.ErrorF("GetCurrentUserProfile jwt token parse error: %v", err)
 		return NewErrorResponse(ctx, ErrParseParam)
 	}
-	return controller.service.GetCurrentProfile(data).Response(ctx)
+	res := controller.service.GetCurrentProfile(data)
+	if res.HttpCode != http.StatusOK {
+		return res.Response(ctx)
+	}
+
+	if data.TokenType == MainToken {
+		return res.Response(ctx)
+	}
+
+	d := &OAuth2User{
+		Username: res.Data.Username,
+		Email:    res.Data.Email,
+		Cid:      res.Data.Cid,
+		QQ:       res.Data.QQ,
+	}
+	return NewApiResponse(res.ApiStatus, d).Response(ctx)
 }
 
 func (controller *UserController) EditCurrentProfile(ctx echo.Context) error {

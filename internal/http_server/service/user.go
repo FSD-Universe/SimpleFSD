@@ -156,18 +156,7 @@ func (userService *UserService) GetCurrentProfile(req *RequestUserCurrentProfile
 		return NewApiResponse[ResponseUserCurrentProfile](ErrAccountSuspended, nil)
 	}
 
-	if req.TokenType == MainToken {
-		return NewApiResponse(SuccessGetCurrentProfile, user)
-	}
-
-	data := &operation.User{
-		Username: user.Username,
-		Email:    user.Email,
-		Cid:      user.Cid,
-		QQ:       user.QQ,
-	}
-
-	return NewApiResponse(SuccessGetCurrentProfile, data)
+	return NewApiResponse(SuccessGetCurrentProfile, user)
 }
 
 func checkQQ(qq int) *ApiStatus {

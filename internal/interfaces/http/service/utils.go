@@ -47,10 +47,11 @@ func NewApiStatus(statusName, description string, httpCode HttpCode) *ApiStatus 
 }
 
 type ApiResponse[T any] struct {
-	HttpCode int    `json:"-"`
-	Code     string `json:"code"`
-	Message  string `json:"message"`
-	Data     T      `json:"data"`
+	HttpCode  int        `json:"-"`
+	ApiStatus *ApiStatus `json:"-"`
+	Code      string     `json:"code"`
+	Message   string     `json:"message"`
+	Data      T          `json:"data"`
 }
 
 type TokenType int
@@ -231,10 +232,11 @@ func NewJsonResponse(ctx echo.Context, code HttpCode, data any) error {
 
 func NewApiResponse[T any](codeStatus *ApiStatus, data T) *ApiResponse[T] {
 	return &ApiResponse[T]{
-		HttpCode: codeStatus.HttpCode.Code(),
-		Code:     codeStatus.StatusName,
-		Message:  codeStatus.Description,
-		Data:     data,
+		ApiStatus: codeStatus,
+		HttpCode:  codeStatus.HttpCode.Code(),
+		Code:      codeStatus.StatusName,
+		Message:   codeStatus.Description,
+		Data:      data,
 	}
 }
 
