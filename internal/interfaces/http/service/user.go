@@ -84,10 +84,12 @@ type RequestUserCurrentProfile struct {
 }
 
 type OAuth2User struct {
-	Username string `json:"username"`
-	Email    string `json:"email"`
-	Cid      int    `json:"cid"`
-	QQ       int    `json:"qq"`
+	Username     string `json:"username"`
+	Email        string `json:"email"`
+	Cid          int    `json:"cid"`
+	QQ           int    `json:"qq"`
+	AvatarUrl    string `json:"avatar_url"`
+	RegisterTime string `json:"register_time"`
 }
 
 type ResponseUserCurrentProfile = *operation.User
