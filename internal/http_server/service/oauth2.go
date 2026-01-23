@@ -295,6 +295,8 @@ func (s *OAuth2Service) Authorize(req *AuthorizeRequest) (*OAuth2ErrorResponse, 
 		}, nil
 	}
 
+	authCode.Client = client
+
 	return nil, authCode
 }
 

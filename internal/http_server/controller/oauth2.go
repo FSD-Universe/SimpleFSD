@@ -158,6 +158,7 @@ func (c *OAuth2Controller) Authorize(ctx echo.Context) error {
 		authorizationPage, _ := url.Parse(c.config.AuthorizationPageURL)
 		query := url.Values{}
 		query.Set("id", strconv.Itoa(int(code.ID)))
+		query.Set("app_name", code.Client.Name)
 		query.Set("scopes", code.Scopes)
 		authorizationPage.RawQuery = query.Encode()
 
