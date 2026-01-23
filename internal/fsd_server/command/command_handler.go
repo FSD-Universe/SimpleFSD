@@ -48,6 +48,7 @@ func (content *CommandContent) verifyFsdUserInfo(session SessionInterface, calls
 			if client.User().Cid == user.Cid {
 				// CID相同，重新连接
 				client.Reconnect(session)
+				session.SetClient(client)
 			} else {
 				// CID不同，呼号相同，清除客户端
 				client.Delete()
@@ -94,6 +95,7 @@ func (content *CommandContent) verifyVatsimUserInfo(session SessionInterface, ca
 			if client.User().Cid == user.Cid {
 				// CID相同，重新连接
 				client.Reconnect(session)
+				session.SetClient(client)
 			} else {
 				// CID不同，呼号相同，清除客户端
 				client.Delete()
