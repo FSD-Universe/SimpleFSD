@@ -133,7 +133,14 @@ func StartHttpServer(applicationContent *ApplicationContent) {
 		HSTSExcludeSubdomains: !httpConfig.SSL.IncludeDomain,
 	}))
 
-	e.Use(middleware.CORS())
+	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOrigins:     httpConfig.CORS.AllowOrigins,
+		AllowMethods:     httpConfig.CORS.AllowMethods,
+		AllowHeaders:     httpConfig.CORS.AllowHeaders,
+		ExposeHeaders:    httpConfig.CORS.ExposeHeaders,
+		AllowCredentials: httpConfig.CORS.AllowCredentials,
+		MaxAge:           httpConfig.CORS.MaxAge,
+	}))
 	if httpConfig.BodyLimit != "" {
 		e.Use(middleware.BodyLimit(httpConfig.BodyLimit))
 	} else {

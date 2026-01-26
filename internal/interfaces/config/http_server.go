@@ -25,6 +25,7 @@ type HttpServerConfig struct {
 	JWT            *JWTConfig       `json:"jwt"`
 	SSL            *SSLConfig       `json:"ssl"`
 	Navigraph      *NavigraphConfig `json:"navigraph"`
+	CORS           *CORSConfig      `json:"cors"`
 	OAuth2         *OAuth2Config    `json:"oauth2"`
 }
 
@@ -45,6 +46,7 @@ func defaultHttpServerConfig() *HttpServerConfig {
 		JWT:            defaultJWTConfig(),
 		SSL:            defaultSSLConfig(),
 		Navigraph:      defaultNavigraphConfig(),
+		CORS:           defaultCORSConfig(),
 		OAuth2:         defaultOAuth2Config(),
 	}
 }
@@ -90,6 +92,9 @@ func (config *HttpServerConfig) checkValid(logger log.LoggerInterface) *ValidRes
 			return result
 		}
 		if result := config.Navigraph.checkValid(logger); result.IsFail() {
+			return result
+		}
+		if result := config.CORS.checkValid(logger); result.IsFail() {
 			return result
 		}
 		if result := config.OAuth2.checkValid(); result.IsFail() {
