@@ -3,7 +3,6 @@ package controller
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	. "github.com/half-nothing/simple-fsd/internal/interfaces/http/service"
@@ -83,12 +82,12 @@ func (controller *UserController) GetCurrentUserProfile(ctx echo.Context) error 
 	}
 
 	d := &OAuth2User{
-		Username:     res.Data.Username,
-		Email:        res.Data.Email,
-		Cid:          res.Data.Cid,
-		QQ:           res.Data.QQ,
-		AvatarUrl:    res.Data.AvatarUrl,
-		RegisterTime: (*res.Data.CreatedAt).Format(time.RFC3339),
+		ID:        res.Data.ID,
+		Username:  res.Data.Username,
+		Email:     res.Data.Email,
+		Cid:       res.Data.Cid,
+		QQ:        res.Data.QQ,
+		AvatarUrl: res.Data.AvatarUrl,
 	}
 	return NewApiResponse(res.ApiStatus, d).Response(ctx)
 }

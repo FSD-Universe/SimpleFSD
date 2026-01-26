@@ -378,7 +378,8 @@ func StartHttpServer(applicationContent *ApplicationContent) {
 		oauth2Group.PATCH("/clients/:client_id", oauth2Controller.UpdateClient, jwtMiddleware, requireMainToken)
 		oauth2Group.DELETE("/clients/:client_id", oauth2Controller.DeleteClient, jwtMiddleware, requireMainToken)
 
-		oauth2Group.PUT("/authorization/:id", oauth2Controller.Authorization, jwtMiddleware, requireMainToken)
+		oauth2Group.PUT("/authorization/:id", oauth2Controller.PutAuthorization, jwtMiddleware, requireMainToken)
+		oauth2Group.GET("/authorization/:id", oauth2Controller.GetAuthorization, jwtMiddleware, requireMainToken)
 		oauth2Group.GET("/authorize", oauth2Controller.Authorize)
 		oauth2Group.POST("/token", oauth2Controller.Token)
 		oauth2Group.POST("/revoke", oauth2Controller.Revoke, jwtMiddleware, requireOAuthToken)

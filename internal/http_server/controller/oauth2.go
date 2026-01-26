@@ -170,11 +170,11 @@ func (c *OAuth2Controller) Authorize(ctx echo.Context) error {
 	return NewJsonResponse(ctx, BadRequest, res)
 }
 
-func (c *OAuth2Controller) Authorization(ctx echo.Context) error {
+func (c *OAuth2Controller) authorization(ctx echo.Context) (*AuthorizationRequest, error) {
 	req := &AuthorizationRequest{}
 	if err := ctx.Bind(req); err != nil {
 		c.logger.ErrorF("Authorization bind error: %v", err)
-		return NewJsonResponse(ctx, BadRequest, &OAuth2ErrorResponse{
+		return nil, NewJsonResponse(ctx, BadRequest, &OAuth2ErrorResponse{
 			ErrorCode:        OAuth2ErrInvalidRequest.ErrorCode,
 			ErrorDescription: "Invalid request body",
 		})
@@ -182,7 +182,7 @@ func (c *OAuth2Controller) Authorization(ctx echo.Context) error {
 
 	if req.Approved == nil {
 		c.logger.ErrorF("Authorization approved error")
-		return NewJsonResponse(ctx, BadRequest, &OAuth2ErrorResponse{
+		return nil, NewJsonResponse(ctx, BadRequest, &OAuth2ErrorResponse{
 			ErrorCode:        OAuth2ErrInvalidRequest.ErrorCode,
 			ErrorDescription: "Missing approved",
 		})
@@ -190,10 +190,51 @@ func (c *OAuth2Controller) Authorization(ctx echo.Context) error {
 
 	if err := SetJwtInfo(req, ctx); err != nil {
 		c.logger.ErrorF("Authorization jwt token parse error: %v", err)
-		return NewErrorResponse(ctx, ErrParseParam)
+		return nil, NewErrorResponse(ctx, ErrParseParam)
+	}
+
+	return req, nil
+}
+
+var SuccessAuthorization = NewApiStatus("SUCCESS_AUTHORIZATION", "处理授权成功", Ok)
+
+func (c *OAuth2Controller) PutAuthorization(ctx echo.Context) error {
+	req, err := c.authorization(ctx)
+	if err != nil {
+		return err
 	}
 
 	res, redirectURI, code := c.oauth2Service.Authorization(req)
+
+	if res == nil {
+		uri, _ := url.Parse(redirectURI)
+		query := uri.Query()
+		query.Set("code", code.Code)
+		if code.State != "" {
+			query.Set("state", code.State)
+		}
+		uri.RawQuery = query.Encode()
+		c.logger.InfoF("Authorization redirect to %s", uri.String())
+		return NewApiResponse(SuccessAuthorization, uri.String()).Response(ctx)
+	}
+
+	if redirectURI != "" {
+		uri := res.BuildErrorURL(redirectURI)
+		c.logger.InfoF("Authorization redirect to %s", uri)
+		return NewApiResponse(SuccessAuthorization, uri).Response(ctx)
+	}
+
+	return NewApiResponse(SuccessAuthorization, res).Response(ctx)
+}
+
+func (c *OAuth2Controller) GetAuthorization(ctx echo.Context) error {
+	req, err := c.authorization(ctx)
+	if err != nil {
+		return err
+	}
+
+	res, redirectURI, code := c.oauth2Service.Authorization(req)
+
 	if res == nil {
 		uri, _ := url.Parse(redirectURI)
 		query := uri.Query()
