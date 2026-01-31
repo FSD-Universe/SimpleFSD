@@ -7,6 +7,7 @@ type VoicePacket struct {
 	Frequency   int
 	Callsign    string
 	Data        []byte
+	RawData     []byte
 }
 
 type VoiceServerInterface interface {

@@ -33,13 +33,13 @@ func FindNearestDistance(groupA, groupB [4]Position) (minDistance float64) {
 				continue
 			}
 			distance := DistanceInNauticalMiles(a, b)
+			if distance <= 0 {
+				return 0
+			}
 			if distance < minDistance {
 				minDistance = distance
 			}
 		}
-	}
-	if minDistance < 0 {
-		minDistance = 0
 	}
 	return
 }

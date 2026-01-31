@@ -32,6 +32,7 @@ type ClientInfo struct {
 	Disconnected     atomic.Bool
 	TransmitterMutex sync.Mutex
 	Transmitters     []*Transmitter
+	Channel          chan *VoicePacket
 	cancel           context.CancelFunc
 }
 
@@ -55,6 +56,7 @@ func NewClientInfo(
 		Disconnected:     atomic.Bool{},
 		TransmitterMutex: sync.Mutex{},
 		Transmitters:     make([]*Transmitter, 0),
+		Channel:          make(chan *VoicePacket, 256),
 		cancel:           cancel,
 	}
 }

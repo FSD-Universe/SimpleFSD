@@ -69,14 +69,6 @@ func BroadcastToSup(toClient, _ ClientInterface) bool {
 	return toClient.Rating() >= Supervisor
 }
 
-func BroadcastToClientInRangeWithThreshold(toClient, fromClient ClientInterface, threshold float64) bool {
-	if fromClient == nil {
-		return true
-	}
-	distance := FindNearestDistance(toClient.Position(), fromClient.Position())
-	return distance <= threshold
-}
-
 func BroadcastToClientInRange(toClient, fromClient ClientInterface) bool {
 	if fromClient == nil {
 		return true
@@ -92,7 +84,8 @@ func BroadcastToClientInRange(toClient, fromClient ClientInterface) bool {
 	default:
 		threshold = toClient.VisualRange() + fromClient.VisualRange()
 	}
-	return BroadcastToClientInRangeWithThreshold(toClient, fromClient, threshold)
+	distance := FindNearestDistance(toClient.Position(), fromClient.Position())
+	return distance <= threshold
 }
 
 func BroadcastToClientInRangeWithVoiceRange(toClient, fromClient ClientInterface) bool {
@@ -101,18 +94,19 @@ func BroadcastToClientInRangeWithVoiceRange(toClient, fromClient ClientInterface
 	}
 	var threshold float64 = 0
 	switch {
+	// 如果发送方或者接收方至少有一方是管制员, 则遵循"可见即可达"
 	case toClient.IsAtc() && fromClient.IsAtc():
-		// 如果发送方或者接收方至少有一方是管制员, 则遵循"可见即可达"
 		threshold = math.Max(toClient.VoiceRange(), fromClient.VoiceRange())
 	case toClient.IsAtc():
 		threshold = toClient.VoiceRange()
 	case fromClient.IsAtc():
-		threshold = fromClient.VisualRange()
+		threshold = fromClient.VoiceRange()
 	default:
 		// 如果是机组与机组之间, 则需要信号双向可达
-		threshold = fromClient.VisualRange() + toClient.VisualRange()
+		threshold = fromClient.VoiceRange() + toClient.VoiceRange()
 	}
-	return BroadcastToClientInRangeWithThreshold(toClient, fromClient, threshold)
+	distance := FindNearestDistance(toClient.Position(), fromClient.Position())
+	return distance <= threshold
 }
 
 func CombineBroadcastFilter(filters ...BroadcastFilter) BroadcastFilter {
