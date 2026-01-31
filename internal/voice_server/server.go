@@ -206,7 +206,7 @@ func (s *VoiceServer) handleTCPConnection(conn net.Conn) {
 		return
 	}
 
-	go s.handleClientPacket(client)
+	go s.handleClientPacket(ctx, client)
 
 	_ = conn.SetReadDeadline(time.Now().Add(s.config.TimeoutDuration))
 	for {
@@ -537,10 +537,10 @@ func (s *VoiceServer) handleUDPConnections() {
 
 			client := s.handleUpdateUDPAddress(voicePacket, addr)
 			if client == nil {
-				return
+				continue
 			}
 			if len(audioData) == 0 {
-				return
+				continue
 			}
 			select {
 			case client.Channel <- voicePacket:
@@ -565,10 +565,16 @@ func (s *VoiceServer) handleUpdateUDPAddress(packet *VoicePacket, addr *net.UDPA
 	return client
 }
 
-func (s *VoiceServer) handleClientPacket(client *ClientInfo) {
+func (s *VoiceServer) handleClientPacket(ctx context.Context, client *ClientInfo) {
 	for {
 		select {
-		case packet := <-client.Channel:
+		case <-ctx.Done():
+			return
+		case packet, ok := <-client.Channel:
+			if !ok {
+				return
+			}
+			s.logger.DebugF("Received voice packet from %s: %+v", client.Callsign, packet)
 			transmitter := s.getOrCreateTransmitter(client, packet.Transmitter)
 			if transmitter == nil {
 				client.Logger.WarnF("Client %d not found", packet.Cid)
