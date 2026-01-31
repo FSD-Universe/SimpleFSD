@@ -10,6 +10,17 @@ type VoicePacket struct {
 	RawData     []byte
 }
 
+func NewVoicePacket() *VoicePacket {
+	return &VoicePacket{
+		Cid:         0,
+		Transmitter: 0,
+		Frequency:   0,
+		Callsign:    "",
+		Data:        nil,
+		RawData:     nil,
+	}
+}
+
 type VoiceServerInterface interface {
 	Start() error
 	Stop()

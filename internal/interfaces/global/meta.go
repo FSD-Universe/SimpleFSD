@@ -28,6 +28,7 @@ var (
 	WebsocketHeartbeatInterval  = flag.Duration("websocket-heartbeat-interval", 30*time.Second, "Websocket heartbeat interval")
 	WebsocketTimeout            = flag.Duration("websocket-timeout", 60*time.Second, "Websocket timeout")
 	WebsocketMessageChannelSize = flag.Int("websocket-message-channel-size", 128, "Websocket message channel size")
+	VoicePoolSize               = flag.Int("voice-pool-size", 128, "Voice pool size")
 )
 
 const (
@@ -53,6 +54,7 @@ const (
 	EnvWebsocketHeartbeatInterval  = "WEBSOCKET_HEART_INTERVAL"
 	EnvWebsocketTimeout            = "WEBSOCKET_TIMEOUT"
 	EnvWebsocketMessageChannelSize = "WEBSOCKET_MESSAGE_CHANNEL_SIZE"
+	EnvVoicePoolSize               = "VOICE_POOL_SIZE"
 
 	LogFilePath  = "logs"
 	MainLogName  = "main"

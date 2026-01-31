@@ -43,12 +43,16 @@ type VoiceServer struct {
 	messageQueue      queue.MessageQueueInterface
 	connectionManager fsd.ConnectionManagerInterface
 
-	tcpLimiter       *utils.SlidingWindowLimiter
-	udpLimiter       *utils.SlidingWindowLimiter
+	tcpLimiter *utils.SlidingWindowLimiter
+	udpLimiter *utils.SlidingWindowLimiter
+
 	addressSlicePool sync.Pool
-	wg               sync.WaitGroup
-	ctx              context.Context
-	cancel           context.CancelFunc
+	voicePacketPool  sync.Pool
+	voiceDataPool    sync.Pool
+
+	wg     sync.WaitGroup
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 func NewVoiceServer(
@@ -65,7 +69,13 @@ func NewVoiceServer(
 		messageQueue:      application.MessageQueue(),
 		connectionManager: application.ConnectionManager(),
 		addressSlicePool: sync.Pool{
-			New: func() interface{} { return make([]*net.UDPAddr, 0, 128) },
+			New: func() interface{} { return make([]*net.UDPAddr, 0, *global.VoicePoolSize) },
+		},
+		voicePacketPool: sync.Pool{
+			New: func() interface{} { return NewVoicePacket() },
+		},
+		voiceDataPool: sync.Pool{
+			New: func() interface{} { return make([]byte, *global.VoicePoolSize) },
 		},
 		wg: sync.WaitGroup{},
 	}
@@ -526,25 +536,36 @@ func (s *VoiceServer) handleUDPConnections() {
 				continue
 			}
 
-			voicePacket := &VoicePacket{
-				Cid:         int(cid),
-				Transmitter: int(transmitter),
-				Frequency:   int(frequency),
-				Callsign:    callsign,
-				Data:        audioData,
-				RawData:     buffer[:n],
+			voicePacket := s.voicePacketPool.Get().(*VoicePacket)
+
+			if n <= *global.VoicePoolSize {
+				voicePacket.RawData = s.voiceDataPool.Get().([]byte)[:n]
+				voicePacket.Data = s.voiceDataPool.Get().([]byte)[:len(audioData)]
+			} else {
+				voicePacket.RawData = make([]byte, n)
+				voicePacket.Data = make([]byte, len(audioData))
 			}
+			copy(voicePacket.RawData, buffer[:n])
+			copy(voicePacket.Data, audioData)
+
+			voicePacket.Cid = int(cid)
+			voicePacket.Transmitter = int(transmitter)
+			voicePacket.Frequency = int(frequency)
+			voicePacket.Callsign = callsign
 
 			client := s.handleUpdateUDPAddress(voicePacket, addr)
 			if client == nil {
+				s.recycleVoicePacket(voicePacket)
 				continue
 			}
 			if len(audioData) == 0 {
+				s.recycleVoicePacket(voicePacket)
 				continue
 			}
 			select {
 			case client.Channel <- voicePacket:
 			default:
+				s.recycleVoicePacket(voicePacket)
 				s.logger.WarnF("Voice packet dropped for client %d", client.Cid)
 			}
 		}
@@ -565,6 +586,64 @@ func (s *VoiceServer) handleUpdateUDPAddress(packet *VoicePacket, addr *net.UDPA
 	return client
 }
 
+func (s *VoiceServer) handleBroadcast(client *ClientInfo, packet *VoicePacket) {
+	defer s.recycleVoicePacket(packet)
+	transmitter := s.getOrCreateTransmitter(client, packet.Transmitter)
+	if transmitter == nil {
+		client.Logger.WarnF("Client %d not found", packet.Cid)
+		return
+	}
+
+	if client.Callsign != packet.Callsign {
+		client.Logger.WarnF("Invalid callsign from %s, expected %s, got %s", client.UDPAddr, client.Callsign, packet.Callsign)
+		return
+	}
+
+	if int(transmitter.Frequency) != packet.Frequency {
+		client.Logger.WarnF("frequency mismatch, drop UDP packet, expected %d, got %d", packet.Frequency, transmitter.Frequency)
+		return
+	}
+
+	s.channelsMutex.RLock()
+	channel, exists := s.channels[transmitter.Frequency]
+	s.channelsMutex.RUnlock()
+
+	if !exists {
+		client.Logger.ErrorF("Channel %d not found from %s", transmitter.Frequency, client.Callsign)
+		return
+	}
+	targets := s.addressSlicePool.Get().([]*net.UDPAddr)[:0]
+	defer s.addressSlicePool.Put(targets)
+
+	channel.ClientsMutex.RLock()
+	for _, clientTransmitter := range channel.Clients {
+		if clientTransmitter.ClientInfo.UDPAddr == nil {
+			continue
+		}
+		if clientTransmitter.ClientInfo.Cid == transmitter.ClientInfo.Cid {
+			continue
+		}
+		if !clientTransmitter.ReceiveFlag {
+			continue
+		}
+		// 如果管制员在线且是机组发往机组
+		if channel.Controller != nil && !clientTransmitter.ClientInfo.Client.IsAtc() && !transmitter.ClientInfo.Client.IsAtc() {
+			targets = append(targets, clientTransmitter.ClientInfo.UDPAddr)
+			continue
+		}
+		if fsd.BroadcastToClientInRangeWithVoiceRange(clientTransmitter.ClientInfo.Client, transmitter.ClientInfo.Client) {
+			targets = append(targets, clientTransmitter.ClientInfo.UDPAddr)
+		}
+	}
+	channel.ClientsMutex.RUnlock()
+
+	if len(targets) == 0 {
+		return
+	}
+
+	s.broadcastToTargets(targets, packet.RawData, client)
+}
+
 func (s *VoiceServer) handleClientPacket(ctx context.Context, client *ClientInfo) {
 	for {
 		select {
@@ -575,63 +654,7 @@ func (s *VoiceServer) handleClientPacket(ctx context.Context, client *ClientInfo
 				return
 			}
 			s.logger.DebugF("Received voice packet from %s: %+v", client.Callsign, packet)
-			transmitter := s.getOrCreateTransmitter(client, packet.Transmitter)
-			if transmitter == nil {
-				client.Logger.WarnF("Client %d not found", packet.Cid)
-				return
-			}
-
-			if client.Callsign != packet.Callsign {
-				client.Logger.WarnF("Invalid callsign from %s, expected %s, got %s", client.UDPAddr, client.Callsign, packet.Callsign)
-				return
-			}
-
-			if int(transmitter.Frequency) != packet.Frequency {
-				client.Logger.WarnF("frequency mismatch, drop UDP packet, expected %d, got %d", packet.Frequency, transmitter.Frequency)
-				return
-			}
-
-			s.channelsMutex.RLock()
-			channel, exists := s.channels[transmitter.Frequency]
-			s.channelsMutex.RUnlock()
-
-			if !exists {
-				client.Logger.ErrorF("Channel %d not found from %s", transmitter.Frequency, client.Callsign)
-				return
-			}
-
-			targets := s.addressSlicePool.Get().([]*net.UDPAddr)
-			targets = targets[:0]
-
-			channel.ClientsMutex.RLock()
-			for _, clientTransmitter := range channel.Clients {
-				if clientTransmitter.ClientInfo.UDPAddr == nil {
-					continue
-				}
-				if clientTransmitter.ClientInfo.Cid == transmitter.ClientInfo.Cid {
-					continue
-				}
-				if !clientTransmitter.ReceiveFlag {
-					continue
-				}
-				// 如果管制员在线且是机组发往机组
-				if channel.Controller != nil && !clientTransmitter.ClientInfo.Client.IsAtc() && !transmitter.ClientInfo.Client.IsAtc() {
-					targets = append(targets, clientTransmitter.ClientInfo.UDPAddr)
-					continue
-				}
-				if fsd.BroadcastToClientInRangeWithVoiceRange(clientTransmitter.ClientInfo.Client, transmitter.ClientInfo.Client) {
-					targets = append(targets, clientTransmitter.ClientInfo.UDPAddr)
-				}
-			}
-			channel.ClientsMutex.RUnlock()
-
-			if len(targets) == 0 {
-				s.addressSlicePool.Put(targets)
-				return
-			}
-
-			s.broadcastToTargets(targets, packet.RawData, client)
-			s.addressSlicePool.Put(targets)
+			s.handleBroadcast(client, packet)
 		}
 	}
 }
@@ -766,4 +789,27 @@ func (s *VoiceServer) setChannelController(connection fsd.ClientInterface, clien
 	s.logger.InfoF("Setting channel %d controller to %s(%04d)", freq, client.Callsign, client.Cid)
 	c.Controller = client.Client
 	return nil
+}
+
+func (s *VoiceServer) recycleVoicePacket(packet *VoicePacket) {
+	if cap(packet.RawData) == *global.VoicePoolSize {
+		packet.RawData = packet.RawData[:*global.VoicePoolSize]
+		s.voiceDataPool.Put(packet.RawData)
+	} else if packet.RawData != nil {
+		packet.RawData = nil
+	}
+
+	if cap(packet.Data) == *global.VoicePoolSize {
+		packet.Data = packet.Data[:*global.VoicePoolSize]
+		s.voiceDataPool.Put(packet.Data)
+	} else if packet.Data != nil {
+		packet.Data = nil
+	}
+
+	packet.Cid = 0
+	packet.Transmitter = 0
+	packet.Frequency = 0
+	packet.Callsign = ""
+
+	s.voicePacketPool.Put(packet)
 }

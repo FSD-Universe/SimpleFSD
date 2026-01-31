@@ -79,6 +79,7 @@ func main() {
 	checkDurationEnv(global.EnvWebsocketHeartbeatInterval, global.WebsocketHeartbeatInterval)
 	checkDurationEnv(global.EnvWebsocketTimeout, global.WebsocketTimeout)
 	checkIntEnv(global.EnvWebsocketMessageChannelSize, global.WebsocketMessageChannelSize, 128)
+	checkIntEnv(global.EnvVoicePoolSize, global.VoicePoolSize, 128)
 
 	if *global.VatsimFull {
 		*global.Vatsim = true
