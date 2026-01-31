@@ -661,6 +661,8 @@ func (s *VoiceServer) cleanupClient(client *ClientInfo) {
 		return
 	}
 
+	close(client.Channel)
+
 	for _, transmitter := range client.Transmitters {
 		s.removeFromChannel(transmitter)
 	}
