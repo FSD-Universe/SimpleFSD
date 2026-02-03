@@ -300,7 +300,7 @@ func (s *VoiceServer) authenticateClient(tokenString string) (*ClientInfo, fsd.C
 	}
 
 	connections = utils.Filter(connections, func(connection fsd.ClientInterface) bool {
-		return !connection.Disconnected() || !connection.IsAtc() || !connection.IsAtis()
+		return !connection.Disconnected() && (!connection.IsAtc() || !connection.IsAtis())
 	})
 
 	if len(connections) > 1 {
