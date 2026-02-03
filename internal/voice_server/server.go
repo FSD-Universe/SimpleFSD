@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Half_nothing
+// SPDX-License-Identifier: MIT
+
 package voice_server
 
 import (
@@ -218,6 +221,8 @@ func (s *VoiceServer) handleTCPConnection(conn net.Conn) {
 
 	go s.handleClientPacket(ctx, client)
 
+	connection.SetAudioOnline(true)
+
 	_ = conn.SetReadDeadline(time.Now().Add(s.config.TimeoutDuration))
 	for {
 		select {
@@ -367,6 +372,14 @@ func (s *VoiceServer) handleVoiceReceive(client *ClientInfo, msg *ControlMessage
 
 	transmitter.ReceiveFlag = receiveFlagStr == "1"
 
+	if !client.Client.IsAtc() {
+		if transmitter.Id == 0 {
+			client.Client.SetAudioCOM1(frequency, transmitter.ReceiveFlag)
+		} else if transmitter.Id == 1 {
+			client.Client.SetAudioCOM2(frequency, transmitter.ReceiveFlag)
+		}
+	}
+
 	_ = client.SendMessage(Message, fmt.Sprintf("SERVER:Transmitter %d set receive flag: %s", msg.Transmitter, strconv.FormatBool(transmitter.ReceiveFlag)))
 }
 
@@ -392,6 +405,14 @@ func (s *VoiceServer) handleChannelSwitch(client *ClientInfo, msg *ControlMessag
 
 	transmitter.Frequency = freq
 	transmitter.ReceiveFlag = receiveFlagStr == "1"
+
+	if !client.Client.IsAtc() {
+		if transmitter.Id == 0 {
+			client.Client.SetAudioCOM1(frequency, transmitter.ReceiveFlag)
+		} else if transmitter.Id == 1 {
+			client.Client.SetAudioCOM2(frequency, transmitter.ReceiveFlag)
+		}
+	}
 
 	s.addToChannel(transmitter)
 
@@ -696,10 +717,10 @@ func (s *VoiceServer) cleanupClient(client *ClientInfo) {
 		s.removeFromChannel(transmitter)
 	}
 
-	if client.Client.IsAtc() {
+	if client.Client.IsAtc() && !client.Client.IsAtis() {
 		s.channelsMutex.Lock()
 		channel, exists := s.channels[ChannelFrequency(client.Client.Frequency()+100000)]
-		if exists {
+		if exists && channel.Controller != nil && channel.Controller.Callsign() == client.Callsign {
 			channel.Controller = nil
 		}
 		s.channelsMutex.Unlock()
@@ -708,6 +729,8 @@ func (s *VoiceServer) cleanupClient(client *ClientInfo) {
 	s.clientsMutex.Lock()
 	delete(s.clients, client.Cid)
 	s.clientsMutex.Unlock()
+
+	client.Client.SetAudioOnline(false)
 
 	client.Disconnected.Store(true)
 }

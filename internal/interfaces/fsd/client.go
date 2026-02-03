@@ -76,4 +76,10 @@ type ClientInterface interface {
 	SetDisconnectCallback(disconnectCallback Callback)
 	SetReconnectCallback(reconnectCallback Callback)
 	SetMessageReceivedCallback(messageReceivedCallback func([]byte))
+	AudioOnline() bool
+	SetAudioOnline(audioOnline bool)
+	AudioCOM1() (int, bool)
+	SetAudioCOM1(audioCOM1 int, received bool)
+	AudioCOM2() (int, bool)
+	SetAudioCOM2(audioCOM2 int, received bool)
 }

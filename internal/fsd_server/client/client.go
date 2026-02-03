@@ -63,6 +63,11 @@ type Client struct {
 	arrival                 bool
 	arrivalAirportData      *config.AirportData
 	arrivalAirportPosition  Position
+	audioOnline             bool
+	audioCOM1               int
+	audioCOM1Received       bool
+	audioCOM2               int
+	audioCOM2Received       bool
 }
 
 func NewClient(
@@ -130,6 +135,11 @@ func NewClient(
 		reconnectTimer:      nil,
 		lock:                sync.RWMutex{},
 		arrivalAirportData:  nil,
+		audioOnline:         false,
+		audioCOM1:           0,
+		audioCOM1Received:   false,
+		audioCOM2:           0,
+		audioCOM2Received:   false,
 	}
 	return client
 }
@@ -602,4 +612,22 @@ func (client *Client) SetReconnectCallback(reconnectCallback Callback) {
 
 func (client *Client) SetMessageReceivedCallback(messageReceivedCallback func([]byte)) {
 	client.messageReceivedCallback = messageReceivedCallback
+}
+
+func (client *Client) AudioOnline() bool { return client.audioOnline }
+
+func (client *Client) SetAudioOnline(audioOnline bool) { client.audioOnline = audioOnline }
+
+func (client *Client) AudioCOM1() (int, bool) { return client.audioCOM1, client.audioCOM1Received }
+
+func (client *Client) SetAudioCOM1(audioCOM1 int, received bool) {
+	client.audioCOM1 = audioCOM1
+	client.audioCOM1Received = received
+}
+
+func (client *Client) AudioCOM2() (int, bool) { return client.audioCOM2, client.audioCOM2Received }
+
+func (client *Client) SetAudioCOM2(audioCOM2 int, received bool) {
+	client.audioCOM2 = audioCOM2
+	client.audioCOM2Received = received
 }

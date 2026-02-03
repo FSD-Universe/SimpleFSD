@@ -84,6 +84,11 @@ type OnlinePilot struct {
 	Altitude         int                   `json:"altitude"`
 	PressureAltitude int                   `json:"pressure_altitude"`
 	GroundSpeed      int                   `json:"ground_speed"`
+	AudioOnline      bool                  `json:"audio_online"`
+	COM1Freq         int                   `json:"com1_freq"`
+	COM1Receive      bool                  `json:"com1_receive"`
+	COM2Freq         int                   `json:"com2_freq"`
+	COM2Receive      bool                  `json:"com2_receive"`
 	FlightPlan       *operation.FlightPlan `json:"flight_plan"`
 	LogonTime        string                `json:"logon_time"`
 }
@@ -100,11 +105,14 @@ func NewOnlinePilotFromClient(client ClientInterface) *OnlinePilot {
 		Altitude:         client.TrueAltitude(),
 		PressureAltitude: client.PressureAltitude(),
 		GroundSpeed:      client.GroundSpeed(),
+		AudioOnline:      client.AudioOnline(),
 		FlightPlan:       client.FlightPlan(),
 		LogonTime:        client.History().StartTime.Format(time.RFC3339),
 	}
 	onlinePilot.Pitch, onlinePilot.Bank, onlinePilot.Hdg, onlinePilot.OnGround = client.Posture()
 	onlinePilot.Heading = int(onlinePilot.Hdg)
+	onlinePilot.COM1Freq, onlinePilot.COM1Receive = client.AudioCOM1()
+	onlinePilot.COM2Freq, onlinePilot.COM2Receive = client.AudioCOM2()
 	return onlinePilot
 }
 
@@ -123,6 +131,7 @@ type OnlineController struct {
 	VoiceRange    float64  `json:"voice_range"`
 	OfflineTime   string   `json:"offline_time"`
 	IsBreak       bool     `json:"is_break"`
+	AudioOnline   bool     `json:"audio_online"`
 	AtcInfo       []string `json:"atc_info"`
 	LogonTime     string   `json:"logon_time"`
 }
@@ -143,6 +152,7 @@ func NewOnlineControllerFromClient(client ClientInterface) *OnlineController {
 		VoiceRange:    client.VoiceRange(),
 		OfflineTime:   client.LogoffTime(),
 		IsBreak:       client.IsBreak(),
+		AudioOnline:   client.AudioOnline(),
 		AtcInfo:       client.AtisInfo(),
 		LogonTime:     client.History().StartTime.Format(time.RFC3339),
 	}
