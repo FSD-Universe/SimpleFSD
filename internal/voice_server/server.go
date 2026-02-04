@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -52,6 +53,7 @@ type VoiceServer struct {
 	addressSlicePool sync.Pool
 	voicePacketPool  sync.Pool
 	voiceDataPool    sync.Pool
+	bytePool         sync.Pool
 
 	wg     sync.WaitGroup
 	ctx    context.Context
@@ -79,6 +81,9 @@ func NewVoiceServer(
 		},
 		voiceDataPool: sync.Pool{
 			New: func() interface{} { return make([]byte, *global.VoicePoolSize) },
+		},
+		bytePool: sync.Pool{
+			New: func() interface{} { return make([]byte, 1<<12) },
 		},
 		wg: sync.WaitGroup{},
 	}
@@ -170,6 +175,13 @@ func (s *VoiceServer) handleTCPConnection(conn net.Conn) {
 	logger := log.NewLoggerAdapter(s.logger, fmt.Sprintf("tcp://%s", conn.RemoteAddr()))
 
 	defer func(conn net.Conn) {
+		if r := recover(); r != nil {
+			buf := s.bytePool.Get().([]byte)
+			stackSize := runtime.Stack(buf, false)
+			logger.ErrorF("Recovered from panic: %v", r)
+			logger.ErrorF("Stack trace: %s", buf[:stackSize])
+			s.bytePool.Put(buf)
+		}
 		logger.DebugF("Closing tcp connection")
 		_ = conn.Close()
 		s.wg.Done()
@@ -296,7 +308,7 @@ func (s *VoiceServer) authenticateClient(tokenString string) (*ClientInfo, fsd.C
 	}
 
 	connections, err := s.connectionManager.GetConnections(claims.Cid)
-	if err != nil {
+	if err != nil || connections == nil || len(connections) == 0 {
 		s.logger.ErrorF("error while getting connections: %v", err)
 		if errors.Is(err, fsd.ErrCidNotFound) {
 			return nil, nil, errors.New("no fsd connection found")
