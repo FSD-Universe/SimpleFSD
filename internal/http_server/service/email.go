@@ -90,6 +90,18 @@ func (emailService *EmailService) deleteVerifyCode(email string) {
 	emailService.emailCodeCache.Del(email)
 }
 
+func (emailService *EmailService) checkEmailHost(email string) *ApiStatus {
+	if emailService.config.AllowedHostPattern == nil {
+		return ErrUnknownServerError
+	}
+
+	if emailService.config.AllowedHostPattern.MatchString(email) {
+		return nil
+	}
+
+	return ErrEmailNotAllowed
+}
+
 func (emailService *EmailService) SendEmailVerifyCode(req *RequestEmailVerifyCode) *ApiResponse[*ResponseEmailVerifyCode] {
 	if emailService.config.EmailServer == nil {
 		return NewApiResponse(SendEmailSuccess, &ResponseEmailVerifyCode{Email: req.Email})
@@ -97,6 +109,10 @@ func (emailService *EmailService) SendEmailVerifyCode(req *RequestEmailVerifyCod
 
 	if req.Email == "" || req.Cid == 0 {
 		return NewApiResponse[*ResponseEmailVerifyCode](ErrIllegalParam, nil)
+	}
+
+	if r := emailService.checkEmailHost(req.Email); r != nil {
+		return NewApiResponse[*ResponseEmailVerifyCode](r, nil)
 	}
 
 	if val, ok := emailService.lastSendTimeCache.Get(req.Email); ok {

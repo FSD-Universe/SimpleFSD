@@ -3,6 +3,7 @@ package config
 
 import (
 	"errors"
+	"regexp"
 	"time"
 
 	"github.com/half-nothing/simple-fsd/internal/interfaces/global"
@@ -20,6 +21,8 @@ type EmailConfig struct {
 	VerifyExpiredDuration time.Duration         `json:"-"`
 	SendInterval          string                `json:"send_interval"`
 	SendDuration          time.Duration         `json:"-"`
+	AllowedHost           string                `json:"allowed_hosts"`
+	AllowedHostPattern    *regexp.Regexp        `json:"-"`
 	Template              *EmailTemplateConfigs `json:"template"`
 }
 
@@ -31,6 +34,7 @@ func defaultEmailConfig() *EmailConfig {
 		Password:          "123456",
 		VerifyExpiredTime: "5m",
 		SendInterval:      "1m",
+		AllowedHost:       "^.*$",
 		Template:          defaultEmailTemplateConfig(),
 	}
 }
@@ -62,6 +66,8 @@ func (config *EmailConfig) checkValid(logger log.LoggerInterface) *ValidResult {
 		}
 		_ = dial.Close()
 	}
+
+	config.AllowedHostPattern = regexp.MustCompile(config.AllowedHost)
 
 	return ValidPass()
 }

@@ -7,9 +7,10 @@ type EmailCode struct {
 }
 
 var (
-	ErrRenderTemplate = NewApiStatus("RENDER_TEMPLATE_ERROR", "邮件发送失败", ServerInternalError)
-	ErrSendEmail      = NewApiStatus("EMAIL_SEND_ERROR", "发送失败", ServerInternalError)
-	SendEmailSuccess  = NewApiStatus("SEND_EMAIL_SUCCESS", "邮件发送成功", Ok)
+	ErrRenderTemplate  = NewApiStatus("RENDER_TEMPLATE_ERROR", "邮件发送失败", ServerInternalError)
+	ErrEmailNotAllowed = NewApiStatus("EMAIL_NOT_ALLOWED", "该邮箱不允许注册", BadRequest)
+	ErrSendEmail       = NewApiStatus("EMAIL_SEND_ERROR", "发送失败", ServerInternalError)
+	SendEmailSuccess   = NewApiStatus("SEND_EMAIL_SUCCESS", "邮件发送成功", Ok)
 )
 
 type EmailServiceInterface interface {
