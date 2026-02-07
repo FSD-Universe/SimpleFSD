@@ -659,8 +659,8 @@ func (s *VoiceServer) handleBroadcast(client *ClientInfo, packet *VoicePacket) {
 		if !clientTransmitter.ReceiveFlag {
 			continue
 		}
-		// 如果管制员在线且是机组发往机组
-		if channel.Controller != nil && !clientTransmitter.ClientInfo.Client.IsAtc() && !transmitter.ClientInfo.Client.IsAtc() {
+		// 如果管制员在线则只要在管制员的范围内就发送
+		if channel.Controller != nil && fsd.BroadcastToClientInRangeWithVoiceRange(channel.Controller, clientTransmitter.ClientInfo.Client) {
 			targets = append(targets, clientTransmitter.ClientInfo.UDPAddr)
 			continue
 		}
