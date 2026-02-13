@@ -92,19 +92,7 @@ func BroadcastToClientInRangeWithVoiceRange(toClient, fromClient ClientInterface
 	if fromClient == nil {
 		return true
 	}
-	var threshold float64 = 0
-	switch {
-	// 如果发送方或者接收方至少有一方是管制员, 则遵循"可见即可达"
-	case toClient.IsAtc() && fromClient.IsAtc():
-		threshold = math.Max(toClient.VoiceRange(), fromClient.VoiceRange())
-	case toClient.IsAtc():
-		threshold = toClient.VoiceRange()
-	case fromClient.IsAtc():
-		threshold = fromClient.VoiceRange()
-	default:
-		// 如果是机组与机组之间, 则需要信号双向可达
-		threshold = fromClient.VoiceRange() + toClient.VoiceRange()
-	}
+	threshold := fromClient.VoiceRange() + toClient.VoiceRange()
 	distance := FindNearestDistance(toClient.Position(), fromClient.Position())
 	return distance <= threshold
 }
