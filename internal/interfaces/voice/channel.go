@@ -17,7 +17,7 @@ const (
 
 type Channel struct {
 	Frequency    ChannelFrequency
-	Controller   fsd.ClientInterface
+	Controllers  []fsd.ClientInterface
 	ClientsMutex sync.RWMutex
 	Clients      map[int]*Transmitter
 	CreatedAt    time.Time

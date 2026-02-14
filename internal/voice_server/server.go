@@ -51,6 +51,7 @@ type VoiceServer struct {
 	udpLimiter *utils.SlidingWindowLimiter
 
 	addressSlicePool sync.Pool
+	addrMapPool      sync.Pool // 广播时按地址去重，复用 map 减少分配
 	voicePacketPool  sync.Pool
 	voiceDataPool    sync.Pool
 	bytePool         sync.Pool
@@ -75,6 +76,9 @@ func NewVoiceServer(
 		connectionManager: application.ConnectionManager(),
 		addressSlicePool: sync.Pool{
 			New: func() interface{} { return make([]*net.UDPAddr, 0, *global.VoicePoolSize) },
+		},
+		addrMapPool: sync.Pool{
+			New: func() interface{} { return make(map[string]*net.UDPAddr) },
 		},
 		voicePacketPool: sync.Pool{
 			New: func() interface{} { return NewVoicePacket() },
@@ -649,6 +653,24 @@ func (s *VoiceServer) handleBroadcast(client *ClientInfo, packet *VoicePacket) {
 	defer s.addressSlicePool.Put(targets)
 
 	channel.ClientsMutex.RLock()
+	// 先算哪些管制员能覆盖发话方
+	var controllersSeeingSender []fsd.ClientInterface
+	for _, ctrl := range channel.Controllers {
+		if ctrl != nil && fsd.BroadcastToClientInRangeWithVoiceRange(ctrl, transmitter.ClientInfo.Client) {
+			controllersSeeingSender = append(controllersSeeingSender, ctrl)
+		}
+	}
+	// 按地址去重
+	addrMap := s.addrMapPool.Get().(map[string]*net.UDPAddr)
+	for k := range addrMap {
+		delete(addrMap, k)
+	}
+	defer func() {
+		for k := range addrMap {
+			delete(addrMap, k)
+		}
+		s.addrMapPool.Put(addrMap)
+	}()
 	for _, clientTransmitter := range channel.Clients {
 		if clientTransmitter.ClientInfo.UDPAddr == nil {
 			continue
@@ -659,15 +681,24 @@ func (s *VoiceServer) handleBroadcast(client *ClientInfo, packet *VoicePacket) {
 		if !clientTransmitter.ReceiveFlag {
 			continue
 		}
-		// 如果管制员在线则以管制员为转发中心进行广播
-		if channel.Controller != nil &&
-			fsd.BroadcastToClientInRangeWithVoiceRange(channel.Controller, clientTransmitter.ClientInfo.Client) {
-			targets = append(targets, clientTransmitter.ClientInfo.UDPAddr)
+		// 若有管制员覆盖发话方，则只向该管制员范围内也覆盖目标的机组转发；否则按机组间语音范围判断
+		inControllerRange := false
+		for _, ctrl := range controllersSeeingSender {
+			if fsd.BroadcastToClientInRangeWithVoiceRange(ctrl, clientTransmitter.ClientInfo.Client) {
+				inControllerRange = true
+				break
+			}
+		}
+		if inControllerRange {
+			addrMap[clientTransmitter.ClientInfo.UDPAddr.String()] = clientTransmitter.ClientInfo.UDPAddr
 			continue
 		}
 		if fsd.BroadcastToClientInRangeWithVoiceRange(clientTransmitter.ClientInfo.Client, transmitter.ClientInfo.Client) {
-			targets = append(targets, clientTransmitter.ClientInfo.UDPAddr)
+			addrMap[clientTransmitter.ClientInfo.UDPAddr.String()] = clientTransmitter.ClientInfo.UDPAddr
 		}
+	}
+	for _, addr := range addrMap {
+		targets = append(targets, addr)
 	}
 	channel.ClientsMutex.RUnlock()
 
@@ -731,10 +762,19 @@ func (s *VoiceServer) cleanupClient(client *ClientInfo) {
 	}
 
 	if client.Client.IsAtc() && !client.Client.IsAtis() {
+		freq := ChannelFrequency(client.Client.Frequency() + 100000)
 		s.channelsMutex.Lock()
-		channel, exists := s.channels[ChannelFrequency(client.Client.Frequency()+100000)]
-		if exists && channel.Controller != nil && channel.Controller.Callsign() == client.Callsign {
-			channel.Controller = nil
+		channel, exists := s.channels[freq]
+		if exists && len(channel.Controllers) > 0 {
+			channel.ClientsMutex.Lock()
+			newControllers := channel.Controllers[:0]
+			for _, ctrl := range channel.Controllers {
+				if ctrl != nil && ctrl.Callsign() != client.Callsign {
+					newControllers = append(newControllers, ctrl)
+				}
+			}
+			channel.Controllers = newControllers
+			channel.ClientsMutex.Unlock()
 		}
 		s.channelsMutex.Unlock()
 	}
@@ -819,11 +859,15 @@ func (s *VoiceServer) setChannelController(connection fsd.ClientInterface, clien
 		return fmt.Errorf("cannot use unicom or emergency frequency as main frequency")
 	}
 	c := s.getOrCreateChannel(freq)
-	if c.Controller != nil {
-		return fmt.Errorf("channel %d already has a controller", freq)
+	c.ClientsMutex.Lock()
+	defer c.ClientsMutex.Unlock()
+	for _, ctrl := range c.Controllers {
+		if ctrl != nil && ctrl.Callsign() == client.Callsign {
+			return nil
+		}
 	}
-	s.logger.InfoF("Setting channel %d controller to %s(%04d)", freq, client.Callsign, client.Cid)
-	c.Controller = client.Client
+	s.logger.InfoF("Adding channel %d controller %s(%04d)", freq, client.Callsign, client.Cid)
+	c.Controllers = append(c.Controllers, client.Client)
 	return nil
 }
 
