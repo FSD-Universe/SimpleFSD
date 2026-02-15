@@ -50,15 +50,23 @@ type VoiceServer struct {
 	tcpLimiter *utils.SlidingWindowLimiter
 	udpLimiter *utils.SlidingWindowLimiter
 
-	addressSlicePool sync.Pool
-	addrMapPool      sync.Pool // 广播时按地址去重，复用 map 减少分配
-	voicePacketPool  sync.Pool
-	voiceDataPool    sync.Pool
-	bytePool         sync.Pool
+	// 缓存池
+	addressSlicePool            sync.Pool
+	addrMapPool                 sync.Pool
+	clientInterfaceSlicePool    sync.Pool
+	broadcastCandidateSlicePool sync.Pool
+	voicePacketPool             sync.Pool
+	voiceDataPool               sync.Pool
+	bytePool                    sync.Pool
 
 	wg     sync.WaitGroup
 	ctx    context.Context
 	cancel context.CancelFunc
+}
+
+type broadcastCandidate struct {
+	client fsd.ClientInterface
+	addr   *net.UDPAddr
 }
 
 func NewVoiceServer(
@@ -79,6 +87,12 @@ func NewVoiceServer(
 		},
 		addrMapPool: sync.Pool{
 			New: func() interface{} { return make(map[string]*net.UDPAddr) },
+		},
+		clientInterfaceSlicePool: sync.Pool{
+			New: func() interface{} { return make([]fsd.ClientInterface, 0, 16) },
+		},
+		broadcastCandidateSlicePool: sync.Pool{
+			New: func() interface{} { return make([]broadcastCandidate, 0, *global.VoicePoolSize) },
 		},
 		voicePacketPool: sync.Pool{
 			New: func() interface{} { return NewVoicePacket() },
@@ -653,54 +667,87 @@ func (s *VoiceServer) handleBroadcast(client *ClientInfo, packet *VoicePacket) {
 	defer s.addressSlicePool.Put(targets)
 
 	channel.ClientsMutex.RLock()
-	// 先算哪些管制员能覆盖发话方
-	var controllersSeeingSender []fsd.ClientInterface
-	for _, ctrl := range channel.Controllers {
-		if ctrl != nil && fsd.BroadcastToClientInRangeWithVoiceRange(ctrl, transmitter.ClientInfo.Client) {
-			controllersSeeingSender = append(controllersSeeingSender, ctrl)
+	n := len(channel.Clients)
+	needCtrl := len(channel.Controllers)
+	controllers := s.clientInterfaceSlicePool.Get().([]fsd.ClientInterface)
+	controllersFromPool := true
+	if cap(controllers) < needCtrl {
+		controllers = make([]fsd.ClientInterface, needCtrl)
+		controllersFromPool = false
+	} else {
+		controllers = controllers[:needCtrl]
+	}
+	copy(controllers, channel.Controllers)
+	candidates := s.broadcastCandidateSlicePool.Get().([]broadcastCandidate)[:0]
+	candidatesFromPool := true
+	if cap(candidates) < n {
+		candidates = make([]broadcastCandidate, 0, n)
+		candidatesFromPool = false
+	}
+	for _, ct := range channel.Clients {
+		// 排除没有注册地址的客户端
+		if ct.ClientInfo.UDPAddr == nil {
+			continue
 		}
+		// 排除客户端自己
+		if ct.ClientInfo.Cid == transmitter.ClientInfo.Cid {
+			continue
+		}
+		// 排除没有标记为接受的客户端
+		if !ct.ReceiveFlag {
+			continue
+		}
+		candidates = append(candidates, broadcastCandidate{client: ct.ClientInfo.Client, addr: ct.ClientInfo.UDPAddr})
 	}
-	// 按地址去重
-	addrMap := s.addrMapPool.Get().(map[string]*net.UDPAddr)
-	for k := range addrMap {
-		delete(addrMap, k)
-	}
+	channel.ClientsMutex.RUnlock()
+
 	defer func() {
-		for k := range addrMap {
-			delete(addrMap, k)
+		if controllersFromPool {
+			controllers = controllers[:0]
+			s.clientInterfaceSlicePool.Put(controllers)
 		}
+		if candidatesFromPool {
+			candidates = candidates[:0]
+			s.broadcastCandidateSlicePool.Put(candidates)
+		}
+	}()
+
+	sender := transmitter.ClientInfo.Client
+	seeingSender := s.clientInterfaceSlicePool.Get().([]fsd.ClientInterface)[:0]
+	defer func() {
+		seeingSender = seeingSender[:0]
+		s.clientInterfaceSlicePool.Put(seeingSender)
+	}()
+	for _, ctrl := range controllers {
+		if ctrl != nil && fsd.BroadcastToClientInRangeWithVoiceRange(ctrl, sender) {
+			seeingSender = append(seeingSender, ctrl)
+		}
+	}
+	addrMap := s.addrMapPool.Get().(map[string]*net.UDPAddr)
+	utils.ClearMap(addrMap)
+	defer func() {
+		utils.ClearMap(addrMap)
 		s.addrMapPool.Put(addrMap)
 	}()
-	for _, clientTransmitter := range channel.Clients {
-		if clientTransmitter.ClientInfo.UDPAddr == nil {
-			continue
-		}
-		if clientTransmitter.ClientInfo.Cid == transmitter.ClientInfo.Cid {
-			continue
-		}
-		if !clientTransmitter.ReceiveFlag {
-			continue
-		}
-		// 若有管制员覆盖发话方，则只向该管制员范围内也覆盖目标的机组转发；否则按机组间语音范围判断
+	for _, c := range candidates {
 		inControllerRange := false
-		for _, ctrl := range controllersSeeingSender {
-			if fsd.BroadcastToClientInRangeWithVoiceRange(ctrl, clientTransmitter.ClientInfo.Client) {
+		for _, ctrl := range seeingSender {
+			if fsd.BroadcastToClientInRangeWithVoiceRange(ctrl, c.client) {
 				inControllerRange = true
 				break
 			}
 		}
 		if inControllerRange {
-			addrMap[clientTransmitter.ClientInfo.UDPAddr.String()] = clientTransmitter.ClientInfo.UDPAddr
+			addrMap[c.addr.String()] = c.addr
 			continue
 		}
-		if fsd.BroadcastToClientInRangeWithVoiceRange(clientTransmitter.ClientInfo.Client, transmitter.ClientInfo.Client) {
-			addrMap[clientTransmitter.ClientInfo.UDPAddr.String()] = clientTransmitter.ClientInfo.UDPAddr
+		if fsd.BroadcastToClientInRangeWithVoiceRange(c.client, sender) {
+			addrMap[c.addr.String()] = c.addr
 		}
 	}
 	for _, addr := range addrMap {
 		targets = append(targets, addr)
 	}
-	channel.ClientsMutex.RUnlock()
 
 	if len(targets) == 0 {
 		return
