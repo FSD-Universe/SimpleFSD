@@ -482,6 +482,9 @@ func (content *CommandContent) HandleClientResponse(session SessionInterface, da
 			if data[3] == "Z" {
 				session.Client().SetLogoffTime(data[4])
 			}
+			if data[3] == "A" {
+				session.Client().UpdateATISLetter(data[4])
+			}
 			return ResultSuccess()
 		}
 		return ResultSuccess()

@@ -1,6 +1,8 @@
 // Package voice
 package voice
 
+import "github.com/half-nothing/simple-fsd/internal/interfaces/fsd"
+
 type VoicePacket struct {
 	Cid         int
 	Transmitter int
@@ -21,7 +23,9 @@ func NewVoicePacket() *VoicePacket {
 	}
 }
 
-type VoiceServerInterface interface {
+type ServerInterface interface {
 	Start() error
 	Stop()
+	ATISOffline(client fsd.ClientInterface)
+	ATISUpdate(client fsd.ClientInterface)
 }

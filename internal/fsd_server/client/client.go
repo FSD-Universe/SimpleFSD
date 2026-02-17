@@ -17,6 +17,7 @@ import (
 	"github.com/half-nothing/simple-fsd/internal/interfaces/global"
 	"github.com/half-nothing/simple-fsd/internal/interfaces/log"
 	"github.com/half-nothing/simple-fsd/internal/interfaces/operation"
+	"github.com/half-nothing/simple-fsd/internal/interfaces/voice"
 	"github.com/half-nothing/simple-fsd/internal/utils"
 )
 
@@ -68,6 +69,8 @@ type Client struct {
 	audioCOM1Received       bool
 	audioCOM2               int
 	audioCOM2Received       bool
+	voiceServer             voice.ServerInterface
+	atisLetter              string
 }
 
 func NewClient(
@@ -140,6 +143,8 @@ func NewClient(
 		audioCOM1Received:   false,
 		audioCOM2:           0,
 		audioCOM2Received:   false,
+		voiceServer:         applicationContent.VoiceServer(),
+		atisLetter:          "",
 	}
 	return client
 }
@@ -207,6 +212,9 @@ func (client *Client) Delete() {
 
 	// 不计入ATIS时长
 	if client.isAtis {
+		if client.voiceServer != nil {
+			client.voiceServer.ATISOffline(client)
+		}
 		return
 	}
 
@@ -356,7 +364,7 @@ func (client *Client) SetPosition(index int, lat float64, lon float64) error {
 
 func (client *Client) checkArrival() bool {
 	if client.arrivalAirportData != nil {
-		return DistanceInNauticalMiles(client.position[0], client.arrivalAirportPosition) <= client.arrivalAirportData.AirportRange
+		return DistanceInNauticalMiles(client.position[0], client.arrivalAirportPosition) <= client.arrivalAirportData.Range
 	}
 	return false
 }
@@ -404,6 +412,23 @@ func (client *Client) ClearAtcAtisInfo() {
 
 func (client *Client) AddAtcAtisInfo(atisInfo string) {
 	client.atisInfo = append(client.atisInfo, atisInfo)
+}
+
+func (client *Client) UpdateATISLetter(letter string) {
+	if !client.isAtis {
+		return
+	}
+	if client.atisLetter == letter {
+		return
+	}
+	// 延迟1秒更新防止刚上线频率为199998
+	time.AfterFunc(time.Second, func() {
+		for client.Frequency() == 99998 {
+			time.Sleep(time.Second)
+		}
+		client.voiceServer.ATISUpdate(client)
+	})
+	client.atisLetter = letter
 }
 
 func (client *Client) SendError(result *Result) {
@@ -531,6 +556,10 @@ func (client *Client) CheckRating(rating []Rating) bool {
 func (client *Client) IsAtc() bool { return client.isAtc }
 
 func (client *Client) IsAtis() bool { return client.isAtis }
+
+func (client *Client) ATISLetter() string {
+	return client.atisLetter
+}
 
 func (client *Client) Callsign() string { return client.callsign }
 

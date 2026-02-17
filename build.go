@@ -88,7 +88,13 @@ func main() {
 
 	fmt.Println("Building binary...")
 
-	cmd := exec.Command("go", "build", "-ldflags", ldflags, "-o", outputName, "./cmd/fsd")
+	args := []string{"build", "-ldflags", ldflags, "-o", outputName}
+	if os.Getenv("BUILD_OPUS") == "1" {
+		args = append(args, "-tags", "opus nolibopusfile")
+		fmt.Println("Build with -tags opus nolibopusfile (ATIS voice encoding enabled, no libopusfile)")
+	}
+	args = append(args, "./cmd/fsd")
+	cmd := exec.Command("go", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 

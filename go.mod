@@ -8,6 +8,7 @@ require (
 	github.com/fatih/color v1.18.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/gorilla/websocket v1.5.3
+	github.com/hraban/opus v0.0.0-20251117090126-c76ea7e21bf3
 	github.com/labstack/echo-jwt/v4 v4.3.1
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/labstack/gommon v0.4.2

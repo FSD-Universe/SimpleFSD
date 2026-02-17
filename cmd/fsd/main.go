@@ -87,6 +87,8 @@ func main() {
 
 	defer recoverFromError()
 
+	builder := interfaces.NewContentBuilder()
+
 	mainLogger := base.NewLogger()
 	mainLogger.Init(global.MainLogPath, global.MainLogName, *global.DebugMode, *global.NoLogs)
 
@@ -103,17 +105,20 @@ func main() {
 	voiceLogger.Init(global.VoiceLogPath, global.VoiceLogName, *global.DebugMode, *global.NoLogs)
 
 	logger := log.NewLoggers(mainLogger, fsdLogger, httpLogger, grpcLogger, voiceLogger)
+	builder.SetLogger(logger)
 
 	mainLogger.Info("Application initializing...")
 
 	mainLogger.Info("Reading configuration...")
 	configManager := base.NewManager(mainLogger)
+	builder.SetConfigManager(configManager)
 	config := configManager.Config()
 
 	mainLogger.Info("Creating cleaner...")
 	cleaner := base.NewCleaner(mainLogger)
 	cleaner.Init()
 	defer cleaner.Clean()
+	builder.SetCleaner(cleaner)
 
 	cleaner.Add(fsdLogger.ShutdownCallback())
 	cleaner.Add(httpLogger.ShutdownCallback())
@@ -139,14 +144,18 @@ func main() {
 		return
 	}
 	cleaner.Add(shutdownCallback)
+	builder.SetOperations(databaseOperation)
 
 	mainLogger.InfoF("Initialize message queue with channel size %d", *global.MessageQueueChannelSize)
 	messageQueue := message.NewAsyncMessageQueue(mainLogger, *global.MessageQueueChannelSize)
+	builder.SetMessageQueue(messageQueue)
 
 	cleaner.Add(messageQueue.ShutdownCallback())
 
 	connectionManager := client.NewConnectionManager(fsdLogger)
+	builder.SetConnectionManager(connectionManager)
 	clientManager := client.NewClientManager(fsdLogger, config, connectionManager, messageQueue)
+	builder.SetClientManager(clientManager)
 
 	messageQueue.Subscribe(queue.KickClientFromServer, clientManager.HandleKickClientFromServerMessage)
 	messageQueue.Subscribe(queue.SendMessageToClient, clientManager.HandleSendMessageToClientMessage)
@@ -172,27 +181,25 @@ func main() {
 	defer memoryCache.Close()
 
 	metarManager := metar.NewMetarManager(mainLogger, config.MetarSource, memoryCache)
+	builder.SetMetarManager(metarManager)
 
 	mainLogger.Info("Creating application content...")
-	applicationContent := interfaces.NewApplicationContent(
-		logger,
-		cleaner,
-		configManager,
-		clientManager,
-		connectionManager,
-		messageQueue,
-		metarManager,
-		databaseOperation,
-	)
 
 	mainLogger.Info("Application initialized. Starting application...")
 
 	if config.Server.HttpServer.Enabled {
-		go http_server.StartHttpServer(applicationContent)
+		go http_server.StartHttpServer(builder.Build())
 	}
 
 	if config.Server.VoiceServer.Enabled {
-		voiceServer := voice_server.NewVoiceServer(applicationContent)
+		if config.Server.VoiceServer.EnableATISVoice {
+			tts := voice_server.NewAliYunTTS(config.Server.VoiceServer.TTSApiKey)
+			builder.SetTTS(tts)
+			builder.SetTransform(voice_server.NewFASAtisTransformer(config.Server.FSDServer.AirportData))
+			builder.SetGenerator(&voice_server.EnglishAtisGenerator{})
+		}
+		voiceServer := voice_server.NewVoiceServer(builder.Build())
+		builder.SetVoiceServer(voiceServer)
 		go func() { _ = voiceServer.Start() }()
 	}
 
@@ -200,5 +207,5 @@ func main() {
 	//	go grpc_server.StartGRPCServer(applicationContent)
 	//}
 
-	fsd_server.StartFSDServer(applicationContent)
+	fsd_server.StartFSDServer(builder.Build())
 }

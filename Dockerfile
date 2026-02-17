@@ -4,9 +4,12 @@ WORKDIR /build
 
 ENV GO111MODULE=on
 ENV CGO_ENABLED=1
+ENV BUILD_OPUS=1
 
 RUN apk update
-RUN apk --no-cache add gcc musl-dev git
+RUN apk --no-cache add gcc musl-dev git opus-dev
+
+RUN pkg-config --modversion opus
 
 COPY go.mod go.sum ./
 
@@ -19,8 +22,7 @@ RUN go run build.go -docker
 FROM alpine:latest AS runtime
 
 RUN apk update
-RUN apk --no-cache add ca-certificates
-RUN apk --no-cache add curl
+RUN apk --no-cache add ca-certificates curl opus
 
 WORKDIR /service
 

@@ -34,6 +34,7 @@ type ClientInterface interface {
 	UpdateAtcVisPoint(visIndex int, lat float64, lon float64) error
 	ClearAtcAtisInfo()
 	AddAtcAtisInfo(atisInfo string)
+	UpdateATISLetter(letter string)
 	SendError(result *Result)
 	SendLineWithoutLog(line []byte) error
 	SendLine(line []byte)
@@ -44,6 +45,7 @@ type ClientInterface interface {
 	CheckRating(rating []Rating) bool
 	IsAtc() bool
 	IsAtis() bool
+	ATISLetter() string
 	Callsign() string
 	Rating() Rating
 	Facility() Facility

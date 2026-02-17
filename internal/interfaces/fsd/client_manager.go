@@ -133,6 +133,8 @@ type OnlineController struct {
 	IsBreak       bool     `json:"is_break"`
 	AudioOnline   bool     `json:"audio_online"`
 	AtcInfo       []string `json:"atc_info"`
+	IsAtis        bool     `json:"is_atis"`
+	AtisLetter    string   `json:"atis_letter"`
 	LogonTime     string   `json:"logon_time"`
 }
 
@@ -154,6 +156,8 @@ func NewOnlineControllerFromClient(client ClientInterface) *OnlineController {
 		IsBreak:       client.IsBreak(),
 		AudioOnline:   client.AudioOnline(),
 		AtcInfo:       client.AtisInfo(),
+		IsAtis:        client.IsAtis(),
+		AtisLetter:    client.ATISLetter(),
 		LogonTime:     client.History().StartTime.Format(time.RFC3339),
 	}
 }

@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -54,6 +55,7 @@ type VoiceServer struct {
 	addressSlicePool            sync.Pool
 	addrMapPool                 sync.Pool
 	clientInterfaceSlicePool    sync.Pool
+	clientInfoSlicePool         sync.Pool
 	broadcastCandidateSlicePool sync.Pool
 	voicePacketPool             sync.Pool
 	voiceDataPool               sync.Pool
@@ -62,6 +64,25 @@ type VoiceServer struct {
 	wg     sync.WaitGroup
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	tts         TTSInterface
+	transform   ATISTransformerInterface
+	generator   ATISGeneratorInterface
+	opusEncoder *OpusEncoder
+	atisMutex   sync.RWMutex
+	atisInfos   map[string]*ATISClientInfo
+}
+
+type ATISClientInfo struct {
+	Cid              int
+	Callsign         string
+	ClientInfo       *ClientInfo
+	Frequency        int
+	Transmitter      *Transmitter
+	VoiceFrames      [][]byte
+	VoiceFramesMutex sync.RWMutex
+	VoiceFramesIndex atomic.Uint32
+	CancelFunc       context.CancelFunc
 }
 
 type broadcastCandidate struct {
@@ -91,6 +112,9 @@ func NewVoiceServer(
 		clientInterfaceSlicePool: sync.Pool{
 			New: func() interface{} { return make([]fsd.ClientInterface, 0, 16) },
 		},
+		clientInfoSlicePool: sync.Pool{
+			New: func() interface{} { return make([]*ClientInfo, 0, 16) },
+		},
 		broadcastCandidateSlicePool: sync.Pool{
 			New: func() interface{} { return make([]broadcastCandidate, 0, *global.VoicePoolSize) },
 		},
@@ -103,7 +127,15 @@ func NewVoiceServer(
 		bytePool: sync.Pool{
 			New: func() interface{} { return make([]byte, 1<<12) },
 		},
-		wg: sync.WaitGroup{},
+		wg:        sync.WaitGroup{},
+		tts:       application.TTS(),
+		transform: application.Transform(),
+		generator: application.Generator(),
+		atisMutex: sync.RWMutex{},
+		atisInfos: make(map[string]*ATISClientInfo),
+	}
+	if server.config.EnableATISVoice {
+		server.opusEncoder = NewOpusEncoder(server.config)
 	}
 	server.udpLimiter = utils.NewSlidingWindowLimiter(time.Minute, server.config.UDPPacketLimit)
 	server.udpLimiter.StartCleanup(2 * time.Minute)
@@ -112,6 +144,90 @@ func NewVoiceServer(
 	server.ctx, server.cancel = context.WithCancel(context.Background())
 	application.Cleaner().Add(NewShutdownCallback(server))
 	return server
+}
+
+func (s *VoiceServer) ATISUpdate(client fsd.ClientInterface) {
+	if !s.config.EnableATISVoice {
+		return
+	}
+	callsign := client.Callsign()
+	s.atisMutex.RLock()
+	atisInfo, ok := s.atisInfos[callsign]
+	s.atisMutex.RUnlock()
+	if !ok {
+		atisInfo = &ATISClientInfo{
+			Cid:      client.User().Cid,
+			Callsign: callsign,
+			ClientInfo: &ClientInfo{
+				Cid:      client.User().Cid,
+				Callsign: client.Callsign(),
+				Client:   client,
+				Logger:   log.NewLoggerAdapter(s.logger, client.Callsign()),
+			},
+			Frequency: client.Frequency() + 100000,
+		}
+		atisInfo.Transmitter = &Transmitter{
+			Id:          0,
+			ClientInfo:  atisInfo.ClientInfo,
+			Frequency:   ChannelFrequency(atisInfo.Frequency),
+			ReceiveFlag: false,
+		}
+		s.atisMutex.Lock()
+		s.atisInfos[callsign] = atisInfo
+		s.atisMutex.Unlock()
+		s.addToChannel(atisInfo.Transmitter)
+	}
+	if atisInfo.CancelFunc != nil {
+		atisInfo.ClientInfo.Logger.DebugF("Cancel ATIS playback: %s", callsign)
+		atisInfo.CancelFunc()
+		atisInfo.CancelFunc = nil
+	}
+	rawAtisInfo := strings.Join(client.AtisInfo(), " ")
+	atisRaw := s.transform.Transform(rawAtisInfo)
+	generatedText := s.generator.Generate(atisRaw)
+	atisInfo.ClientInfo.Logger.DebugF("Generated text: %s", generatedText)
+	voiceData, err := s.tts.Synthesize(generatedText)
+	if err != nil {
+		s.logger.ErrorF("Failed to synthesize ATIS voice data: %v", err)
+		return
+	}
+	atisInfo.ClientInfo.Logger.DebugF("Voice data length: %d", len(voiceData))
+	data, err := s.opusEncoder.EncodePCM(voiceData)
+	if err != nil {
+		s.logger.ErrorF("Failed to encode ATIS voice data: %v", err)
+		return
+	}
+	atisInfo.ClientInfo.Logger.DebugF("Opus data length: %d", len(data))
+	for i, datum := range data {
+		data[i] = s.buildAtisVoicePacket(int32(atisInfo.Cid), 0, int32(atisInfo.Frequency), atisInfo.Callsign, datum)
+	}
+	atisInfo.VoiceFramesMutex.Lock()
+	atisInfo.VoiceFrames = data
+	atisInfo.VoiceFramesIndex.Store(0)
+	atisInfo.VoiceFramesMutex.Unlock()
+	go s.startAtisVoice(atisInfo)
+}
+
+func (s *VoiceServer) ATISOffline(client fsd.ClientInterface) {
+	s.logger.InfoF("ATIS offline: %s", client.Callsign())
+	callsign := client.Callsign()
+	s.atisMutex.RLock()
+	atisInfo, ok := s.atisInfos[callsign]
+	s.atisMutex.RUnlock()
+	if !ok {
+		return
+	}
+	if atisInfo.CancelFunc != nil {
+		s.logger.DebugF("Cancel ATIS playback: %s", callsign)
+		atisInfo.CancelFunc()
+		atisInfo.CancelFunc = nil
+	}
+	atisInfo.VoiceFramesMutex.Lock()
+	atisInfo.VoiceFrames = nil
+	atisInfo.VoiceFramesMutex.Unlock()
+	s.atisMutex.Lock()
+	delete(s.atisInfos, callsign)
+	s.atisMutex.Unlock()
 }
 
 func (s *VoiceServer) Start() error {
@@ -157,12 +273,20 @@ func (s *VoiceServer) Stop() {
 	defer s.clientsMutex.Unlock()
 	for _, client := range s.clients {
 		go func(client *ClientInfo) {
-			close(client.Channel)
 			_ = client.SendControlMessage(message)
 			time.AfterFunc(global.FSDDisconnectDelay, func() {
 				_ = client.TCPConn.Close()
 			})
 		}(client)
+	}
+
+	s.atisMutex.Lock()
+	defer s.atisMutex.Unlock()
+	for _, atisInfo := range s.atisInfos {
+		if atisInfo.CancelFunc != nil {
+			atisInfo.CancelFunc()
+			atisInfo.CancelFunc = nil
+		}
 	}
 
 	s.wg.Wait()
@@ -492,7 +616,6 @@ func (s *VoiceServer) handleTextMessage(client *ClientInfo, msg *ControlMessage)
 }
 
 func (s *VoiceServer) handleDisconnect(client *ClientInfo, _ *ControlMessage) {
-	s.cleanupClient(client)
 	_ = client.SendControlMessage(&ControlMessage{Type: Disconnect})
 	time.AfterFunc(global.FSDDisconnectDelay, func() {
 		_ = client.TCPConn.Close()
@@ -690,7 +813,7 @@ func (s *VoiceServer) handleBroadcast(client *ClientInfo, packet *VoicePacket) {
 			continue
 		}
 		// 排除客户端自己
-		if ct.ClientInfo.Cid == transmitter.ClientInfo.Cid {
+		if ct.ClientInfo.Callsign == transmitter.ClientInfo.Callsign {
 			continue
 		}
 		// 排除没有标记为接受的客户端
@@ -857,7 +980,7 @@ func (s *VoiceServer) addToChannel(transmitter *Transmitter) {
 	channel := s.getOrCreateChannel(transmitter.Frequency)
 
 	channel.ClientsMutex.Lock()
-	channel.Clients[transmitter.ClientInfo.Cid] = transmitter
+	channel.Clients[transmitter.ClientInfo.Callsign] = transmitter
 	channel.ClientsMutex.Unlock()
 }
 
@@ -870,7 +993,7 @@ func (s *VoiceServer) getOrCreateChannel(frequency ChannelFrequency) *Channel {
 		channel = &Channel{
 			Frequency:    frequency,
 			ClientsMutex: sync.RWMutex{},
-			Clients:      make(map[int]*Transmitter),
+			Clients:      make(map[string]*Transmitter),
 			CreatedAt:    time.Now(),
 		}
 		s.channels[frequency] = channel
@@ -889,12 +1012,103 @@ func (s *VoiceServer) removeFromChannel(transmitter *Transmitter) {
 	}
 
 	channel.ClientsMutex.Lock()
-	delete(channel.Clients, transmitter.ClientInfo.Cid)
+	delete(channel.Clients, transmitter.ClientInfo.Callsign)
 	channel.ClientsMutex.Unlock()
 
 	if len(channel.Clients) == 0 {
 		delete(s.channels, channel.Frequency)
 	}
+}
+
+const maxCallsignLen = 127
+
+func (s *VoiceServer) buildAtisVoicePacket(cid int32, transmitter int8, frequency int32, callsign string, audio []byte) []byte {
+	if len(callsign) > maxCallsignLen {
+		callsign = callsign[:maxCallsignLen]
+	}
+	size := 4 + 1 + 4 + 1 + len(callsign) + len(audio)
+	buf := make([]byte, 0, size)
+	buf = binary.LittleEndian.AppendUint32(buf, uint32(cid))
+	buf = append(buf, byte(transmitter))
+	buf = binary.LittleEndian.AppendUint32(buf, uint32(frequency))
+	buf = append(buf, byte(len(callsign)))
+	buf = append(buf, callsign...)
+	buf = append(buf, audio...)
+	buf = append(buf, '\n')
+	return buf
+}
+
+func (s *VoiceServer) broadcastATISVoicePacket(client *ATISClientInfo) (overflow bool) {
+	client.VoiceFramesMutex.RLock()
+	frame := client.VoiceFrames[client.VoiceFramesIndex.Load()]
+	client.VoiceFramesMutex.RUnlock()
+	client.VoiceFramesIndex.Add(1)
+	if client.VoiceFramesIndex.Load() >= uint32(len(client.VoiceFrames)) {
+		client.VoiceFramesIndex.Store(0)
+		overflow = true
+	}
+	if frame == nil {
+		client.ClientInfo.Logger.DebugF("Frame is nil")
+		return
+	}
+
+	s.channelsMutex.RLock()
+	channel, exists := s.channels[ChannelFrequency(client.Frequency)]
+	s.channelsMutex.RUnlock()
+
+	if !exists {
+		client.ClientInfo.Logger.ErrorF("Channel %d not found from %s", client.Frequency, client.Callsign)
+		return
+	}
+
+	targets := s.addressSlicePool.Get().([]*net.UDPAddr)[:0]
+	defer s.addressSlicePool.Put(targets)
+
+	channel.ClientsMutex.RLock()
+	for _, transmitter := range channel.Clients {
+		if transmitter.ClientInfo.UDPAddr == nil {
+			continue
+		}
+		if transmitter.ClientInfo.Callsign == client.Callsign {
+			continue
+		}
+		if !transmitter.ReceiveFlag {
+			continue
+		}
+		if fsd.BroadcastToClientInRangeWithVoiceRange(client.Transmitter.ClientInfo.Client, transmitter.ClientInfo.Client) {
+			targets = append(targets, transmitter.ClientInfo.UDPAddr)
+		}
+	}
+	channel.ClientsMutex.RUnlock()
+
+	s.broadcastToTargets(targets, frame, client.Transmitter.ClientInfo)
+	return
+}
+
+func (s *VoiceServer) runAtisVoiceLoop(ctx context.Context, client *ATISClientInfo) {
+	interval := time.Duration(s.config.OPUSFrameTime) * time.Millisecond
+	timer := time.NewTicker(interval)
+	defer timer.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+			if s.broadcastATISVoicePacket(client) {
+				timer.Stop()
+				time.AfterFunc(s.config.ATISPlayDuration, func() {
+					timer.Reset(interval)
+				})
+			}
+		}
+	}
+}
+
+func (s *VoiceServer) startAtisVoice(client *ATISClientInfo) {
+	ctx, cancel := context.WithCancel(s.ctx)
+	client.CancelFunc = cancel
+	go s.runAtisVoiceLoop(ctx, client)
+	s.logger.InfoF("ATIS voice started for %s on frequency %d", client.Callsign, client.Frequency)
 }
 
 func (s *VoiceServer) setChannelController(connection fsd.ClientInterface, client *ClientInfo) error {

@@ -19,6 +19,6 @@ type Channel struct {
 	Frequency    ChannelFrequency
 	Controllers  []fsd.ClientInterface
 	ClientsMutex sync.RWMutex
-	Clients      map[int]*Transmitter
+	Clients      map[string]*Transmitter
 	CreatedAt    time.Time
 }

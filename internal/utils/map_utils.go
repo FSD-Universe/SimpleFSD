@@ -9,3 +9,9 @@ func ClearMap[K comparable, V any](m map[K]V) {
 		delete(m, k)
 	}
 }
+
+func MergeMap[K comparable, V any](dst, src map[K]V) {
+	for k, v := range src {
+		dst[k] = v
+	}
+}
