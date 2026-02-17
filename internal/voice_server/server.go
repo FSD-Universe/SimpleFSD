@@ -197,7 +197,7 @@ func (s *VoiceServer) ATISUpdate(client fsd.ClientInterface, letter string) {
 		return
 	}
 	generatedText := s.generator.Generate(atisRaw)
-	atisInfo.ClientInfo.Logger.DebugF("Generated text: %s", generatedText)
+	atisInfo.ClientInfo.Logger.InfoF("Generated text: %s", generatedText)
 	voiceData, err := s.tts.Synthesize(generatedText)
 	if err != nil {
 		s.logger.ErrorF("Failed to synthesize ATIS voice data: %v", err)
