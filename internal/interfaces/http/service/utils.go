@@ -177,7 +177,7 @@ func NewFsdClaims(config *config.JWTConfig, user *operation.User) *FsdClaims {
 			Subject:   user.Username,
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(config.ExpiresDuration)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(config.FSDExpiresDuration)),
 		},
 	}
 }
