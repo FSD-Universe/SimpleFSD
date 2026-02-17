@@ -8,14 +8,15 @@ import (
 )
 
 type AirportData struct {
-	Lat          float64 `json:"lat"`
-	Lon          float64 `json:"lon"`
-	Alt          float64 `json:"alt"`
-	AirportRange float64 `json:"airport_range"`
+	Lat   float64 `json:"lat"`
+	Lon   float64 `json:"lon"`
+	Elev  float64 `json:"elev"`
+	Range float64 `json:"range"`
+	Name  string  `json:"name"`
 }
 
 func (config *AirportData) checkValid(_ log.LoggerInterface) *ValidResult {
-	if config.AirportRange <= 0 {
+	if config.Range <= 0 {
 		return ValidFail(errors.New("airport_range must be greater than zero"))
 	}
 	return ValidPass()
