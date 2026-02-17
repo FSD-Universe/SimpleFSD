@@ -160,12 +160,22 @@ func (s *OAuth2Service) UpdateClient(req *UpdateClientRequest) *ApiResponse[*Cli
 	}
 
 	if len(req.RedirectURIs) > 0 {
-		updates["redirect_uris"] = req.RedirectURIs
+		d, err := json.Marshal(req.RedirectURIs)
+		if err != nil {
+			s.logger.ErrorF("Failed to marshal redirect uris: %v", err)
+			return NewApiResponse[*ClientInfo](ErrUnknownServerError, nil)
+		}
+		updates["redirect_uris"] = string(d)
 		client.RedirectURIs = req.RedirectURIs
 	}
 
 	if len(req.Scopes) > 0 {
-		updates["scopes"] = req.Scopes
+		d, err := json.Marshal(req.Scopes)
+		if err != nil {
+			s.logger.ErrorF("Failed to marshal redirect uris: %v", err)
+			return NewApiResponse[*ClientInfo](ErrUnknownServerError, nil)
+		}
+		updates["scopes"] = string(d)
 		client.Scopes = req.Scopes
 	}
 
