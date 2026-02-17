@@ -1081,6 +1081,10 @@ func (s *VoiceServer) broadcastATISVoicePacket(client *ATISClientInfo) (overflow
 	}
 	channel.ClientsMutex.RUnlock()
 
+	if len(targets) == 0 {
+		return
+	}
+
 	s.broadcastToTargets(targets, frame, client.Transmitter.ClientInfo)
 	return
 }
