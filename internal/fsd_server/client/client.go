@@ -426,7 +426,7 @@ func (client *Client) UpdateATISLetter(letter string) {
 		for client.Frequency() == 99998 {
 			time.Sleep(time.Second)
 		}
-		client.voiceServer.ATISUpdate(client)
+		client.voiceServer.ATISUpdate(client, letter)
 	})
 	client.atisLetter = letter
 }

@@ -27,5 +27,5 @@ type ServerInterface interface {
 	Start() error
 	Stop()
 	ATISOffline(client fsd.ClientInterface)
-	ATISUpdate(client fsd.ClientInterface)
+	ATISUpdate(client fsd.ClientInterface, letter string)
 }

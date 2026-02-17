@@ -82,6 +82,7 @@ type ATISClientInfo struct {
 	VoiceFrames      [][]byte
 	VoiceFramesMutex sync.RWMutex
 	VoiceFramesIndex atomic.Uint32
+	Letter           string
 	CancelFunc       context.CancelFunc
 }
 
@@ -146,7 +147,7 @@ func NewVoiceServer(
 	return server
 }
 
-func (s *VoiceServer) ATISUpdate(client fsd.ClientInterface) {
+func (s *VoiceServer) ATISUpdate(client fsd.ClientInterface, letter string) {
 	if !s.config.EnableATISVoice {
 		return
 	}
@@ -158,6 +159,7 @@ func (s *VoiceServer) ATISUpdate(client fsd.ClientInterface) {
 		atisInfo = &ATISClientInfo{
 			Cid:      client.User().Cid,
 			Callsign: callsign,
+			Letter:   letter,
 			ClientInfo: &ClientInfo{
 				Cid:      client.User().Cid,
 				Callsign: client.Callsign(),
@@ -182,6 +184,11 @@ func (s *VoiceServer) ATISUpdate(client fsd.ClientInterface) {
 		atisInfo.CancelFunc()
 		atisInfo.CancelFunc = nil
 	}
+	atisInfo.VoiceFramesMutex.Lock()
+	if letter != client.ATISLetter() {
+		atisInfo.VoiceFramesMutex.Unlock()
+		return
+	}
 	rawAtisInfo := strings.Join(client.AtisInfo(), " ")
 	atisRaw := s.transform.Transform(rawAtisInfo)
 	generatedText := s.generator.Generate(atisRaw)
@@ -201,7 +208,6 @@ func (s *VoiceServer) ATISUpdate(client fsd.ClientInterface) {
 	for i, datum := range data {
 		data[i] = s.buildAtisVoicePacket(int32(atisInfo.Cid), 0, int32(atisInfo.Frequency), atisInfo.Callsign, datum)
 	}
-	atisInfo.VoiceFramesMutex.Lock()
 	atisInfo.VoiceFrames = data
 	atisInfo.VoiceFramesIndex.Store(0)
 	atisInfo.VoiceFramesMutex.Unlock()
@@ -1091,7 +1097,8 @@ func (s *VoiceServer) broadcastATISVoicePacket(client *ATISClientInfo) (overflow
 
 func (s *VoiceServer) runAtisVoiceLoop(ctx context.Context, client *ATISClientInfo) {
 	interval := time.Duration(s.config.OPUSFrameTime) * time.Millisecond
-	timer := time.NewTicker(interval)
+	timer := time.NewTicker(time.Second)
+	timer.Reset(interval)
 	defer timer.Stop()
 	for {
 		select {
@@ -1112,7 +1119,7 @@ func (s *VoiceServer) startAtisVoice(client *ATISClientInfo) {
 	ctx, cancel := context.WithCancel(s.ctx)
 	client.CancelFunc = cancel
 	go s.runAtisVoiceLoop(ctx, client)
-	s.logger.InfoF("ATIS voice started for %s on frequency %d", client.Callsign, client.Frequency)
+	s.logger.InfoF("ATIS voice started for %s on frequency %d information %s", client.Callsign, client.Frequency, client.Letter)
 }
 
 func (s *VoiceServer) setChannelController(connection fsd.ClientInterface, client *ClientInfo) error {
