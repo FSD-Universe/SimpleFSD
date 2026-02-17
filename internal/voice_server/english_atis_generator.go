@@ -70,13 +70,15 @@ func (gen *EnglishAtisGenerator) Generate(atis *voice.ATIS) string {
 		sb.WriteString(voice.ICAODigitsMap[string(c)])
 	}
 	sb.WriteString(" U T C, departure runway")
-	for _, runway := range atis.Departure.Runways[:len(atis.Departure.Runways)-1] {
+	if len(atis.Departure.Runways) > 0 {
+		for _, runway := range atis.Departure.Runways[:len(atis.Departure.Runways)-1] {
+			sb.WriteString(space)
+			sb.WriteString(gen.formatRunway(runway))
+			sb.WriteString(" and")
+		}
 		sb.WriteString(space)
-		sb.WriteString(gen.formatRunway(runway))
-		sb.WriteString(" and")
+		sb.WriteString(gen.formatRunway(atis.Departure.Runways[len(atis.Departure.Runways)-1]))
 	}
-	sb.WriteString(space)
-	sb.WriteString(gen.formatRunway(atis.Departure.Runways[len(atis.Departure.Runways)-1]))
 	sb.WriteString(", expect ")
 	switch atis.Arrival.ApproachType {
 	case voice.ATISApproachTypeILS:
@@ -88,13 +90,15 @@ func (gen *EnglishAtisGenerator) Generate(atis *voice.ATIS) string {
 	case voice.ATISApproachTypeVisual:
 		sb.WriteString("visual approach runway")
 	}
-	for _, runway := range atis.Arrival.Runways[:len(atis.Arrival.Runways)-1] {
+	if len(atis.Arrival.Runways) > 0 {
+		for _, runway := range atis.Arrival.Runways[:len(atis.Arrival.Runways)-1] {
+			sb.WriteString(space)
+			sb.WriteString(gen.formatRunway(runway))
+			sb.WriteString(" and")
+		}
 		sb.WriteString(space)
-		sb.WriteString(gen.formatRunway(runway))
-		sb.WriteString(" and")
+		sb.WriteString(gen.formatRunway(atis.Arrival.Runways[len(atis.Arrival.Runways)-1]))
 	}
-	sb.WriteString(space)
-	sb.WriteString(gen.formatRunway(atis.Arrival.Runways[len(atis.Arrival.Runways)-1]))
 	sb.WriteString(", wind ")
 	if atis.Wind.Calm {
 		sb.WriteString("calm")
