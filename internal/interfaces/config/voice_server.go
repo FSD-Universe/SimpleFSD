@@ -24,6 +24,13 @@ type VoiceServerConfig struct {
 	UDPPacketLimit    int           `json:"udp_packet_limit"`
 	TCPPacketLimit    int           `json:"tcp_packet_limit"`
 	MinimumPilotRange float64       `json:"minimum_pilot_range"`
+	EnableATISVoice   bool          `json:"enable_atis_voice"`
+	ATISPlayInterval  string        `json:"atis_play_interval"`
+	ATISPlayDuration  time.Duration `json:"-"`
+	TTSApiKey         string        `json:"tts_api_key"`
+	OPUSSampleRate    int           `json:"opus_sample_rate"`
+	OPUSChannel       int           `json:"opus_channel"`
+	OPUSFrameTime     int           `json:"opus_frame_time"`
 }
 
 func defaultVoiceServerConfig() *VoiceServerConfig {
@@ -39,6 +46,12 @@ func defaultVoiceServerConfig() *VoiceServerConfig {
 		UDPPacketLimit:    8192,
 		TCPPacketLimit:    32,
 		MinimumPilotRange: 10.0,
+		EnableATISVoice:   false,
+		TTSApiKey:         "",
+		ATISPlayInterval:  "5s",
+		OPUSSampleRate:    48000,
+		OPUSChannel:       1,
+		OPUSFrameTime:     20,
 	}
 }
 
@@ -58,6 +71,22 @@ func (config *VoiceServerConfig) checkValid(_ log.LoggerInterface) *ValidResult 
 			return ValidFailWith(errors.New("invalid json field voice_server.ping_interval"), err)
 		} else {
 			config.TimeoutDuration = duration
+		}
+		if config.EnableATISVoice {
+			if config.OPUSSampleRate <= 0 {
+				return ValidFail(errors.New("invalid json field voice_server.opus_sample_rate"))
+			}
+			if config.OPUSChannel <= 0 {
+				return ValidFail(errors.New("invalid json field voice_server.opus_channel"))
+			}
+			if config.OPUSFrameTime <= 0 {
+				return ValidFail(errors.New("invalid json field voice_server.opus_frame_time"))
+			}
+			if duration, err := time.ParseDuration(config.ATISPlayInterval); err != nil {
+				return ValidFailWith(errors.New("invalid json field voice_server.atis_play_interval"), err)
+			} else {
+				config.ATISPlayDuration = duration
+			}
 		}
 	}
 	return ValidPass()
