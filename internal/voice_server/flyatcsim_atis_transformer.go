@@ -217,7 +217,7 @@ func (transform *FASAtisTransformer) Transform(text string) *voice.ATIS {
 	text = strings.ToUpper(text)
 	lines := strings.Split(text, sep)
 	atis := voice.NewATIS()
-	if transform.parseFirstLine(atis, lines[0]) {
+	if !transform.parseFirstLine(atis, lines[0]) {
 		return nil
 	}
 	for _, line := range lines[1:] {
