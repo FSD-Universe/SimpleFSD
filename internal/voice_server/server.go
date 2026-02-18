@@ -196,6 +196,7 @@ func (s *VoiceServer) ATISUpdate(client fsd.ClientInterface, letter string) {
 		atisInfo.ClientInfo.Logger.ErrorF("Failed to transform ATIS raw data: %s", rawAtisInfo)
 		return
 	}
+	atisRaw.Letter = letter
 	generatedText := s.generator.Generate(atisRaw)
 	atisInfo.ClientInfo.Logger.InfoF("Generated text: %s", generatedText)
 	voiceData, err := s.tts.Synthesize(generatedText)

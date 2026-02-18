@@ -418,6 +418,7 @@ func (client *Client) UpdateATISLetter(letter string) {
 	if !client.isAtis {
 		return
 	}
+	letter = strings.ToUpper(letter)
 	if client.atisLetter == letter {
 		return
 	}
