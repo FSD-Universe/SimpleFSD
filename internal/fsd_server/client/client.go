@@ -214,6 +214,7 @@ func (client *Client) Delete() {
 	if client.isAtis {
 		if client.voiceServer != nil {
 			client.voiceServer.ATISOffline(client)
+			client.audioOnline = false
 		}
 		return
 	}
@@ -428,6 +429,7 @@ func (client *Client) UpdateATISLetter(letter string) {
 			time.Sleep(time.Second)
 		}
 		client.voiceServer.ATISUpdate(client, letter)
+		client.audioOnline = true
 	})
 	client.atisLetter = letter
 }
