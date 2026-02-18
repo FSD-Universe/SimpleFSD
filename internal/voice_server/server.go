@@ -1051,6 +1051,10 @@ func (s *VoiceServer) buildAtisVoicePacket(cid int32, transmitter int8, frequenc
 
 func (s *VoiceServer) broadcastATISVoicePacket(client *ATISClientInfo) (overflow bool) {
 	client.VoiceFramesMutex.RLock()
+	if client.VoiceFrames == nil || len(client.VoiceFrames) == 0 {
+		client.VoiceFramesMutex.RUnlock()
+		return
+	}
 	frame := client.VoiceFrames[client.VoiceFramesIndex.Load()]
 	client.VoiceFramesMutex.RUnlock()
 	client.VoiceFramesIndex.Add(1)
@@ -1101,6 +1105,15 @@ func (s *VoiceServer) broadcastATISVoicePacket(client *ATISClientInfo) (overflow
 }
 
 func (s *VoiceServer) runAtisVoiceLoop(ctx context.Context, client *ATISClientInfo) {
+	defer func() {
+		if r := recover(); r != nil {
+			buf := s.bytePool.Get().([]byte)
+			stackSize := runtime.Stack(buf, false)
+			s.logger.ErrorF("Recovered from panic: %v", r)
+			s.logger.ErrorF("Stack trace: %s", buf[:stackSize])
+			s.bytePool.Put(buf)
+		}
+	}()
 	interval := time.Duration(s.config.OPUSFrameTime) * time.Millisecond
 	timer := time.NewTicker(time.Second)
 	timer.Reset(interval)
