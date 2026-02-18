@@ -813,6 +813,7 @@ func (s *VoiceServer) handleBroadcast(client *ClientInfo, packet *VoicePacket) {
 		controllers = controllers[:needCtrl]
 	}
 	copy(controllers, channel.Controllers)
+	s.logger.DebugF("%d controllers for %d found", needCtrl, channel.Frequency)
 	candidates := s.broadcastCandidateSlicePool.Get().([]broadcastCandidate)[:0]
 	candidatesFromPool := true
 	if cap(candidates) < n {
@@ -990,6 +991,8 @@ func (s *VoiceServer) getOrCreateTransmitter(client *ClientInfo, transmitterID i
 
 func (s *VoiceServer) addToChannel(transmitter *Transmitter) {
 	channel := s.getOrCreateChannel(transmitter.Frequency)
+	s.logger.DebugF("Adding client %s to channel %d", transmitter.ClientInfo.Callsign, channel.Frequency)
+	s.logger.DebugF("Channel %d has %d clients, %d controllers", channel.Frequency, len(channel.Clients), len(channel.Controllers))
 
 	channel.ClientsMutex.Lock()
 	channel.Clients[transmitter.ClientInfo.Callsign] = transmitter
@@ -1007,6 +1010,7 @@ func (s *VoiceServer) getOrCreateChannel(frequency ChannelFrequency) *Channel {
 			ClientsMutex: sync.RWMutex{},
 			Clients:      make(map[string]*Transmitter),
 			CreatedAt:    time.Now(),
+			Controllers:  make([]fsd.ClientInterface, 0),
 		}
 		s.channels[frequency] = channel
 	}
@@ -1030,6 +1034,28 @@ func (s *VoiceServer) removeFromChannel(transmitter *Transmitter) {
 	if len(channel.Clients) == 0 {
 		delete(s.channels, channel.Frequency)
 	}
+}
+
+func (s *VoiceServer) setChannelController(connection fsd.ClientInterface, client *ClientInfo) error {
+	if !connection.IsAtc() || connection.IsAtis() {
+		return nil
+	}
+	freq := ChannelFrequency(connection.Frequency() + 100000)
+	if freq == UNICOM || freq == EMERGENCY {
+		return fmt.Errorf("cannot use unicom or emergency frequency as main frequency")
+	}
+	c := s.getOrCreateChannel(freq)
+	c.ClientsMutex.Lock()
+	defer c.ClientsMutex.Unlock()
+	for _, ctrl := range c.Controllers {
+		if ctrl != nil && ctrl.Callsign() == client.Callsign {
+			return nil
+		}
+	}
+	s.logger.InfoF("Adding channel %d controller %s(%04d)", freq, client.Callsign, client.Cid)
+	c.Controllers = append(c.Controllers, client.Client)
+	s.logger.InfoF("Channel %d has %d controllers", freq, len(c.Controllers))
+	return nil
 }
 
 const maxCallsignLen = 127
@@ -1139,27 +1165,6 @@ func (s *VoiceServer) startAtisVoice(client *ATISClientInfo) {
 	client.CancelFunc = cancel
 	go s.runAtisVoiceLoop(ctx, client)
 	s.logger.InfoF("ATIS voice started for %s on frequency %d information %s", client.Callsign, client.Frequency, client.Letter)
-}
-
-func (s *VoiceServer) setChannelController(connection fsd.ClientInterface, client *ClientInfo) error {
-	if !connection.IsAtc() || connection.IsAtis() {
-		return nil
-	}
-	freq := ChannelFrequency(connection.Frequency() + 100000)
-	if freq == UNICOM || freq == EMERGENCY {
-		return fmt.Errorf("cannot use unicom or emergency frequency as main frequency")
-	}
-	c := s.getOrCreateChannel(freq)
-	c.ClientsMutex.Lock()
-	defer c.ClientsMutex.Unlock()
-	for _, ctrl := range c.Controllers {
-		if ctrl != nil && ctrl.Callsign() == client.Callsign {
-			return nil
-		}
-	}
-	s.logger.InfoF("Adding channel %d controller %s(%04d)", freq, client.Callsign, client.Cid)
-	c.Controllers = append(c.Controllers, client.Client)
-	return nil
 }
 
 func (s *VoiceServer) recycleVoicePacket(packet *VoicePacket) {
