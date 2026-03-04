@@ -128,7 +128,7 @@ func (transform *FASAtisTransformer) parseRVR(atis *voice.ATIS, line string) {
 	if parts[0] == "RVR" {
 		rvr := &voice.ATISRunwayVisualRange{Runway: parts[2]}
 		nums := rvrReg.FindAllString(line, -1)
-		if parts[4] == "THAN" {
+		if len(parts) >= 5 && parts[4] == "THAN" {
 			switch parts[3] {
 			case "MORE":
 				rvr.OverRange = voice.ATISRVROverRangeTypeUp
