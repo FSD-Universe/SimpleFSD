@@ -322,7 +322,7 @@ func StartHttpServer(applicationContent *ApplicationContent) {
 	clientGroup := apiGroup.Group("/clients")
 	clientGroup.GET("", clientController.GetOnlineClients)
 	clientGroup.GET("/status", func(c echo.Context) error { return c.String(http.StatusOK, whazzupContent) })
-	clientGroup.GET("/paths/:callsign", clientController.GetClientPath, jwtMiddleware, requireMainToken)
+	clientGroup.GET("/paths/:callsign", clientController.GetClientPath)
 	clientGroup.POST("/messages", clientController.BroadcastMessage, jwtMiddleware, requireMainToken)
 	clientGroup.POST("/messages/:callsign", clientController.SendMessageToClient, jwtMiddleware, requireMainToken)
 	clientGroup.DELETE("/:callsign", clientController.KillClient, jwtMiddleware, requireMainToken)
