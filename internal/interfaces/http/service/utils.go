@@ -82,8 +82,9 @@ type FsdClaims struct {
 }
 
 type PageArguments struct {
-	Page     int `query:"page_number"`
-	PageSize int `query:"page_size"`
+	Page     int    `query:"page_number"`
+	PageSize int    `query:"page_size"`
+	Search   string `query:"search"`
 }
 
 type PageResponse[T any] struct {

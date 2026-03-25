@@ -86,7 +86,7 @@ type UserOperationInterface interface {
 	// GetUserByUsernameOrEmail 通过用户名或者邮箱获取用户, 当err为nil时返回值user有效
 	GetUserByUsernameOrEmail(ident string) (user *User, err error)
 	// GetUsers 获取分页用户数据, 当err为nil时返回值users有效, total表示数据总数目
-	GetUsers(page, pageSize int) (users []*User, total int64, err error)
+	GetUsers(page, pageSize int, search string) (users []*User, total int64, err error)
 	// NewUser 创建一个新用户(只是创建, 没有写入数据库), 当err为nil时返回值user有效
 	NewUser(username string, email string, cid int, password string) (user *User, err error)
 	// AddUser 创建一个新用户(写入数据库), 在写入之前会调用 [UserOperationInterface.IsUserIdentifierTaken] 检查一致性约束, 当err为nil时表示创建成功

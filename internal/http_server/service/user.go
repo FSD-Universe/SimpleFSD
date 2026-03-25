@@ -354,7 +354,7 @@ func (userService *UserService) GetUserList(req *RequestUserList) *ApiResponse[R
 		return res
 	}
 
-	users, total, err := userService.userOperation.GetUsers(req.Page, req.PageSize)
+	users, total, err := userService.userOperation.GetUsers(req.Page, req.PageSize, req.Search)
 	if res := CheckDatabaseError[ResponseUserList](err); res != nil {
 		return res
 	}

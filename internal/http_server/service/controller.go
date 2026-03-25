@@ -55,7 +55,7 @@ func (controllerService *ControllerService) GetControllerList(req *RequestContro
 		return res
 	}
 
-	users, total, err := controllerService.controllerOperation.GetControllers(req.Page, req.PageSize)
+	users, total, err := controllerService.controllerOperation.GetControllers(req.Page, req.PageSize, req.Search)
 	if res := CheckDatabaseError[ResponseControllerList](err); res != nil {
 		return res
 	}
@@ -113,7 +113,7 @@ func (controllerService *ControllerService) GetControllerRatings(req *RequestCon
 		return NewApiResponse[ResponseControllerRatingList](ErrIllegalParam, nil)
 	}
 
-	users, total, err := controllerService.controllerOperation.GetControllers(req.Page, req.PageSize)
+	users, total, err := controllerService.controllerOperation.GetControllers(req.Page, req.PageSize, "")
 	if res := CheckDatabaseError[ResponseControllerRatingList](err); res != nil {
 		return res
 	}

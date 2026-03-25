@@ -8,6 +8,7 @@ import (
 	"github.com/half-nothing/simple-fsd/internal/interfaces/config"
 	"github.com/half-nothing/simple-fsd/internal/interfaces/log"
 	. "github.com/half-nothing/simple-fsd/internal/interfaces/operation"
+	"github.com/half-nothing/simple-fsd/internal/utils"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -89,12 +90,20 @@ func (userOperation *UserOperation) GetUserByUsernameOrEmail(ident string) (user
 	return user, nil
 }
 
-func (userOperation *UserOperation) GetUsers(page, pageSize int) (users []*User, total int64, err error) {
+func (userOperation *UserOperation) GetUsers(page, pageSize int, search string) (users []*User, total int64, err error) {
 	users = make([]*User, 0, pageSize)
 	ctx, cancel := context.WithTimeout(context.Background(), userOperation.queryTimeout)
 	defer cancel()
-	userOperation.db.WithContext(ctx).Model(&User{}).Select("id").Count(&total)
-	err = userOperation.db.WithContext(ctx).Offset((page - 1) * pageSize).Order("cid").Limit(pageSize).Find(&users).Error
+	var totalSearch = userOperation.db.WithContext(ctx).Model(&User{}).Select("id")
+	var dataSearch = userOperation.db.WithContext(ctx).Offset((page - 1) * pageSize).Order("cid").Limit(pageSize)
+	if search != "" {
+		var likeSearch = "%" + search + "%"
+		var intSearch = utils.StrToInt(search, -1)
+		totalSearch.Where("username LIKE ? OR email LIKE ? OR cid = ?", likeSearch, likeSearch, intSearch)
+		dataSearch.Where("username LIKE ? OR email LIKE ? OR cid = ?", likeSearch, likeSearch, intSearch)
+	}
+	totalSearch.Count(&total)
+	err = dataSearch.Find(&users).Error
 	return
 }
 
