@@ -85,7 +85,7 @@ func (activityOperation *ActivityOperation) GetActivitiesPage(page, pageSize int
 	ctx, cancel := context.WithTimeout(context.Background(), activityOperation.queryTimeout)
 	defer cancel()
 	activityOperation.db.WithContext(ctx).Model(&Activity{}).Select("id").Count(&total)
-	err = activityOperation.db.WithContext(ctx).Offset((page - 1) * pageSize).Limit(pageSize).Find(&activities).Error
+	err = activityOperation.db.WithContext(ctx).Offset((page - 1) * pageSize).Limit(pageSize).Order("active_time desc").Find(&activities).Error
 	return
 }
 
