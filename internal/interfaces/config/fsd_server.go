@@ -29,6 +29,7 @@ type FSDServerConfig struct {
 	SessionCleanDuration time.Duration           `json:"-"`                     // 内部使用字段
 	MaxWorkers           int                     `json:"max_workers"`           // 并发线程数
 	MaxBroadcastWorkers  int                     `json:"max_broadcast_workers"` // 广播并发线程数
+	MaxConnection        int                     `json:"max_connection"`
 	RangeLimit           *FsdRangeLimit          `json:"range_limit"`
 	FirstMotdLine        string                  `json:"first_motd_line"`
 	Motd                 []string                `json:"motd"`
@@ -47,6 +48,7 @@ func defaultFSDServerConfig() *FSDServerConfig {
 		SessionCleanTime:    "40s",
 		MaxWorkers:          128,
 		MaxBroadcastWorkers: 128,
+		MaxConnection:       2,
 		RangeLimit:          defaultFsdRangeLimitConfig(),
 		FirstMotdLine:       "Welcome to use %[1]s v%[2]s",
 		Motd:                make([]string, 0),

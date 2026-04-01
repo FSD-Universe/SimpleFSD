@@ -24,7 +24,7 @@ func (content *CommandContent) verifyFsdUserInfo(session SessionInterface, calls
 		return ResultError(CallsignInvalid, true, callsign, nil)
 	}
 
-	if protocol != 9 && protocol != 101 {
+	if protocol != 9 && protocol != 101 && protocol != 100 {
 		return ResultError(InvalidProtocolVision, true, callsign, nil)
 	}
 
@@ -35,8 +35,20 @@ func (content *CommandContent) verifyFsdUserInfo(session SessionInterface, calls
 	if user.Rating <= Ban.Index() {
 		return ResultError(CidSuspended, true, callsign, nil)
 	}
-	if !content.userOperation.VerifyUserPassword(user, password) {
-		return ResultError(InvalidCidPassword, true, callsign, nil)
+
+	if protocol == 9 {
+		if !content.userOperation.VerifyUserPassword(user, password) {
+			return ResultError(InvalidCidPassword, true, callsign, nil)
+		}
+	} else {
+		claims, err := jwt.ParseWithClaims(password, &service.FsdClaims{}, content.defaultKeyFunc)
+		if err != nil {
+			return ResultError(InvalidCidPassword, true, callsign, err)
+		}
+
+		if _, ok := claims.Claims.(*service.FsdClaims); !ok {
+			return ResultError(InvalidCidPassword, true, callsign, errors.New("invalid claims type"))
+		}
 	}
 
 	client, ok := content.clientManager.GetClient(callsign)
@@ -56,6 +68,16 @@ func (content *CommandContent) verifyFsdUserInfo(session SessionInterface, calls
 		} else {
 			// 呼号已被使用
 			return ResultError(CallsignInUse, true, callsign, nil)
+		}
+	}
+
+	connections, err := content.connectionManager.GetConnections(user.Cid)
+	if err == nil {
+		connections = utils.Filter(connections, func(connection ClientInterface) bool {
+			return !connection.Disconnected() && (!connection.IsAtc() || !connection.IsAtis())
+		})
+		if len(connections) >= content.maxConnections {
+			return ResultError(ServerFull, true, callsign, nil)
 		}
 	}
 
@@ -103,6 +125,16 @@ func (content *CommandContent) verifyVatsimUserInfo(session SessionInterface, ca
 		} else {
 			// 呼号已被使用
 			return ResultError(CallsignInUse, true, callsign, nil)
+		}
+	}
+
+	connections, err := content.connectionManager.GetConnections(user.Cid)
+	if err == nil {
+		connections = utils.Filter(connections, func(connection ClientInterface) bool {
+			return !connection.Disconnected() && (!connection.IsAtc() || !connection.IsAtis())
+		})
+		if len(connections) >= content.maxConnections {
+			return ResultError(ServerFull, true, callsign, nil)
 		}
 	}
 
