@@ -133,18 +133,6 @@ func (flightPlanService *FlightPlanService) DeleteSelfFlightPlan(req *RequestDel
 	}
 
 	flightPlanService.messageQueue.Publish(&queue.Message{
-		Type: queue.AuditLog,
-		Data: flightPlanService.auditLogOperation.NewAuditLog(
-			operation.FlightPlanSelfDeleted,
-			req.Cid,
-			fmt.Sprintf("%04d", req.Cid),
-			req.Ip,
-			req.UserAgent,
-			nil,
-		),
-	})
-
-	flightPlanService.messageQueue.Publish(&queue.Message{
 		Type: queue.FlushFlightPlan,
 		Data: &fsd.FlushFlightPlan{
 			TargetCallsign: flightPlan.Callsign,

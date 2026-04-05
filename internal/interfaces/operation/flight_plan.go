@@ -8,8 +8,8 @@ import (
 
 type FlightPlan struct {
 	ID               uint      `gorm:"primarykey" json:"id"`
-	Cid              int       `gorm:"index;not null" json:"cid"`
-	Callsign         string    `gorm:"size:16;uniqueIndex;not null" json:"callsign"`
+	Cid              int       `gorm:"uniqueIndex;not null" json:"cid"`
+	Callsign         string    `gorm:"size:16;index;not null" json:"callsign"`
 	FlightType       string    `gorm:"size:4;not null" json:"flight_rules"`
 	AircraftType     string    `gorm:"size:128;not null" json:"aircraft"`
 	Tas              int       `gorm:"not null" json:"cruise_tas"`

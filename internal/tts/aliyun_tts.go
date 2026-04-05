@@ -1,8 +1,8 @@
 // Copyright (c) 2026 Half_nothing
 // SPDX-License-Identifier: MIT
 
-// Package voice_server
-package voice_server
+// Package tts
+package tts
 
 import (
 	"bufio"
@@ -10,20 +10,19 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"strings"
 	"sync"
 
+	"github.com/half-nothing/simple-fsd/internal/interfaces/config"
 	"github.com/half-nothing/simple-fsd/internal/utils"
 )
 
 const (
-	aliyunModelName      = "qwen3-tts-instruct-flash"
 	aliyunModelMaxLength = 512
-	aliyunVoiceName      = "Neil"
 	aliyunLanguageType   = "English"
-	aliyunEndpoint       = "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
 	aliyunContentType    = "application/json"
 )
 
@@ -39,7 +38,10 @@ type AliYunRequest struct {
 }
 
 type AliYunTTS struct {
+	modelName  string
+	voiceName  string
 	apiKey     string
+	url        string
 	httpClient *http.Client
 }
 
@@ -52,9 +54,12 @@ type AliYunResponse struct {
 	} `json:"output"`
 }
 
-func NewAliYunTTS(apiKey string) *AliYunTTS {
+func NewAliYunTTS(c *config.TTSServer) *AliYunTTS {
 	return &AliYunTTS{
-		apiKey:     apiKey,
+		modelName:  c.Model,
+		voiceName:  c.Voice,
+		apiKey:     c.ApiKey,
+		url:        c.Url,
 		httpClient: &http.Client{},
 	}
 }
@@ -68,17 +73,17 @@ func (tts *AliYunTTS) setHeaders(req *http.Request) {
 // getData 调用阿里云TTS
 func (tts *AliYunTTS) getData(text string) ([]byte, error) {
 	data, err := json.Marshal(&AliYunRequest{
-		Model: aliyunModelName,
+		Model: tts.modelName,
 		Input: AliYunRequestInput{
 			Text:         text,
-			Voice:        aliyunVoiceName,
+			Voice:        tts.voiceName,
 			LanguageType: aliyunLanguageType,
 		},
 	})
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequest(http.MethodPost, aliyunEndpoint, bytes.NewBuffer(data))
+	req, err := http.NewRequest(http.MethodPost, tts.url, bytes.NewBuffer(data))
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +92,7 @@ func (tts *AliYunTTS) getData(text string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) { _ = Body.Close() }(resp.Body)
 
 	scanner := bufio.NewScanner(resp.Body)
 

@@ -1,2 +1,8 @@
+.git/
 .idea/
+.github/
+docs/
+external/
 runtime/
+CODE_OF_CONDUCT.md
+LICENSE

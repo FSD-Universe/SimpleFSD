@@ -135,7 +135,7 @@ func NewVoiceServer(
 		atisMutex: sync.RWMutex{},
 		atisInfos: make(map[string]*ATISClientInfo),
 	}
-	if server.config.EnableATISVoice {
+	if server.config.ATIS.Enable {
 		server.opusEncoder = NewOpusEncoder(server.config)
 	}
 	server.udpLimiter = utils.NewSlidingWindowLimiter(time.Minute, server.config.UDPPacketLimit)
@@ -148,7 +148,16 @@ func NewVoiceServer(
 }
 
 func (s *VoiceServer) ATISUpdate(client fsd.ClientInterface, letter string) {
-	if !s.config.EnableATISVoice {
+	defer func() {
+		if r := recover(); r != nil {
+			buf := s.bytePool.Get().([]byte)
+			stackSize := runtime.Stack(buf, false)
+			s.logger.ErrorF("Recovered from panic: %v", r)
+			s.logger.ErrorF("Stack trace: %s", buf[:stackSize])
+			s.bytePool.Put(buf)
+		}
+	}()
+	if !s.config.ATIS.Enable {
 		return
 	}
 	callsign := client.Callsign()
@@ -1141,7 +1150,7 @@ func (s *VoiceServer) runAtisVoiceLoop(ctx context.Context, client *ATISClientIn
 			s.bytePool.Put(buf)
 		}
 	}()
-	interval := time.Duration(s.config.OPUSFrameTime) * time.Millisecond
+	interval := time.Duration(s.config.ATIS.OPUSFrameTime) * time.Millisecond
 	timer := time.NewTicker(time.Second)
 	timer.Reset(interval)
 	defer timer.Stop()
@@ -1152,7 +1161,7 @@ func (s *VoiceServer) runAtisVoiceLoop(ctx context.Context, client *ATISClientIn
 		case <-timer.C:
 			if s.broadcastATISVoicePacket(client) {
 				timer.Stop()
-				time.AfterFunc(s.config.ATISPlayDuration, func() {
+				time.AfterFunc(s.config.ATIS.ATISPlayDuration, func() {
 					timer.Reset(interval)
 				})
 			}

@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/half-nothing/simple-fsd/internal/atis"
 	"github.com/half-nothing/simple-fsd/internal/base"
 	"github.com/half-nothing/simple-fsd/internal/cache"
 	"github.com/half-nothing/simple-fsd/internal/database"
@@ -15,12 +16,15 @@ import (
 	"github.com/half-nothing/simple-fsd/internal/fsd_server/client"
 	"github.com/half-nothing/simple-fsd/internal/http_server"
 	"github.com/half-nothing/simple-fsd/internal/interfaces"
+	c "github.com/half-nothing/simple-fsd/internal/interfaces/config"
 	"github.com/half-nothing/simple-fsd/internal/interfaces/fsd"
 	"github.com/half-nothing/simple-fsd/internal/interfaces/global"
 	"github.com/half-nothing/simple-fsd/internal/interfaces/log"
 	"github.com/half-nothing/simple-fsd/internal/interfaces/queue"
+	"github.com/half-nothing/simple-fsd/internal/interfaces/voice"
 	"github.com/half-nothing/simple-fsd/internal/message"
 	"github.com/half-nothing/simple-fsd/internal/metar"
+	"github.com/half-nothing/simple-fsd/internal/tts"
 	"github.com/half-nothing/simple-fsd/internal/utils"
 	"github.com/half-nothing/simple-fsd/internal/voice_server"
 )
@@ -192,11 +196,17 @@ func main() {
 	}
 
 	if config.Server.VoiceServer.Enabled {
-		if config.Server.VoiceServer.EnableATISVoice {
-			tts := voice_server.NewAliYunTTS(config.Server.VoiceServer.TTSApiKey)
-			builder.SetTTS(tts)
-			builder.SetTransform(voice_server.NewFASAtisTransformer(config.Server.FSDServer.AirportData))
-			builder.SetGenerator(&voice_server.EnglishAtisGenerator{})
+		if config.Server.VoiceServer.ATIS.Enable {
+			var ttsEngine voice.TTSInterface
+			switch config.Server.VoiceServer.ATIS.TTSServer.Engine {
+			case c.TTSEngineAliYun:
+				ttsEngine = tts.NewAliYunTTS(config.Server.VoiceServer.ATIS.TTSServer)
+			case c.TTSEnginePocketTTS:
+				ttsEngine = tts.NewPocketTTS(config.Server.VoiceServer.ATIS.TTSServer)
+			}
+			builder.SetTTS(ttsEngine)
+			builder.SetTransform(atis.NewFASAtisTransformer(config.Server.FSDServer.AirportData))
+			builder.SetGenerator(&atis.EnglishAtisGenerator{})
 		}
 		voiceServer := voice_server.NewVoiceServer(builder.Build())
 		builder.SetVoiceServer(voiceServer)

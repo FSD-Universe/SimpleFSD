@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 // Package voice_server
-package voice_server
+package atis
 
 import (
 	"regexp"
@@ -111,15 +111,17 @@ func (transform *FASAtisTransformer) parseWind(atis *voice.ATIS, line string) {
 // VIS 7000 M, AT NORTH | VIS MORE THAN 10 KM
 func (transform *FASAtisTransformer) parseVisibility(atis *voice.ATIS, line string) {
 	parts := strings.Split(line, space)
+	vis := &voice.ATISVisibility{}
 	if parts[0] == "VIS" {
 		if len(parts) > 3 {
-			atis.Visibility.Visibility = 10000
+			vis.Visibility = 10000
 		} else {
-			atis.Visibility.Visibility = utils.StrToInt(parts[1], 0)
+			vis.Visibility = utils.StrToInt(parts[1], 0)
 		}
 	} else if parts[0] == "AT" {
-		atis.Visibility.Direction = parts[1]
+		vis.Direction = parts[1]
 	}
+	atis.Visibility = append(atis.Visibility, vis)
 }
 
 // RVR RWY 36L MORE THAN 4000M | RVR RWY 36L BETWEEN 2000M AND 4000M NC

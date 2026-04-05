@@ -4,3 +4,6 @@ runtime/
 fsd*
 *.zip
 build.bat
+.env
+external/pockettts/cache
+external/redis/data

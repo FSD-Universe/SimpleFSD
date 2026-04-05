@@ -1,0 +1,14 @@
+services:
+  pocket-tts:
+    build: .
+    container_name: pocket-tts
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./cache:/root/.cache/huggingface
+    networks:
+      - main
+
+networks:
+  main:
+    external: true

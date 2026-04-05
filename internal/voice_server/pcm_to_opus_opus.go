@@ -23,11 +23,11 @@ type OpusEncoder struct {
 func NewOpusEncoder(voiceConfig *config.VoiceServerConfig) *OpusEncoder {
 	encoder := &OpusEncoder{
 		voiceConfig: voiceConfig,
-		frameSize:   voiceConfig.OPUSSampleRate * voiceConfig.OPUSFrameTime / 1000,
+		frameSize:   voiceConfig.ATIS.OPUSSampleRate * voiceConfig.ATIS.OPUSFrameTime / 1000,
 	}
 	encoder.encoderPool = sync.Pool{
 		New: func() interface{} {
-			enc, err := opus.NewEncoder(voiceConfig.OPUSSampleRate, voiceConfig.OPUSChannel, opus.AppVoIP)
+			enc, err := opus.NewEncoder(voiceConfig.ATIS.OPUSSampleRate, voiceConfig.ATIS.OPUSChannel, opus.AppVoIP)
 			if err != nil {
 				return nil
 			}
@@ -72,7 +72,7 @@ func (encoder *OpusEncoder) EncodePCM(pcm []byte) (opusFrames [][]byte, err erro
 		enc = raw.(*opus.Encoder)
 	}
 	if enc == nil {
-		enc, err = opus.NewEncoder(encoder.voiceConfig.OPUSSampleRate, encoder.voiceConfig.OPUSChannel, opus.AppVoIP)
+		enc, err = opus.NewEncoder(encoder.voiceConfig.ATIS.OPUSSampleRate, encoder.voiceConfig.ATIS.OPUSChannel, opus.AppVoIP)
 		if err != nil {
 			return nil, fmt.Errorf("audio: new opus encoder: %w", err)
 		}

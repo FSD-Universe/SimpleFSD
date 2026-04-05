@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 // Package voice_server
-package voice_server
+package atis
 
 import (
 	"fmt"
@@ -58,7 +58,19 @@ func (gen *EnglishAtisGenerator) formatMetricAltitude(number int) string {
 	if number%1000 >= 100 {
 		words = append(words, voice.ICAODigitsMap[strconv.Itoa(number%1000/100)], "hundred")
 	}
-	words = append(words, "meters")
+	words = append(words, "meter")
+	return strings.Join(words, space)
+}
+
+func (gen *EnglishAtisGenerator) formatImperialAltitude(number int) string {
+	words := make([]string, 0)
+	if number >= 1000 {
+		words = append(words, gen.formatNumber(strconv.Itoa(number/1000)), "thousand")
+	}
+	if number%1000 >= 100 {
+		words = append(words, voice.ICAODigitsMap[strconv.Itoa(number%1000/100)], "hundred")
+	}
+	words = append(words, "feet")
 	return strings.Join(words, space)
 }
 
@@ -71,7 +83,7 @@ func (gen *EnglishAtisGenerator) Generate(atis *voice.ATIS) string {
 	}
 	sb.WriteString(" U T C")
 	if atis.Type == voice.ATISTypeDeparture || atis.Type == voice.ATISTypeBoth {
-		sb.WriteString(",departure runway")
+		sb.WriteString(".departure runway")
 		if len(atis.Departure.Runways) > 0 {
 			for _, runway := range atis.Departure.Runways[:len(atis.Departure.Runways)-1] {
 				sb.WriteString(space)
@@ -83,7 +95,7 @@ func (gen *EnglishAtisGenerator) Generate(atis *voice.ATIS) string {
 		}
 	}
 	if atis.Type == voice.ATISTypeArrival || atis.Type == voice.ATISTypeBoth {
-		sb.WriteString(",expect ")
+		sb.WriteString(".expect ")
 		switch atis.Arrival.ApproachType {
 		case voice.ATISApproachTypeILS:
 			sb.WriteString("I L S approach runway")
@@ -104,7 +116,7 @@ func (gen *EnglishAtisGenerator) Generate(atis *voice.ATIS) string {
 			sb.WriteString(gen.formatRunway(atis.Arrival.Runways[len(atis.Arrival.Runways)-1]))
 		}
 	}
-	sb.WriteString(", wind ")
+	sb.WriteString(". wind ")
 	if atis.Wind.Calm {
 		sb.WriteString("calm")
 	} else {
@@ -139,16 +151,88 @@ func (gen *EnglishAtisGenerator) Generate(atis *voice.ATIS) string {
 	sb.WriteString(gen.formatNumber(strconv.Itoa(atis.Temperature.Dewpoint)))
 	sb.WriteString(" , Q N H ")
 	sb.WriteString(gen.formatNumber(strconv.Itoa(atis.QNH)))
-	sb.WriteString(",")
+	sb.WriteString(".")
+	for _, cloud := range atis.Clouds {
+		switch cloud.Coverage {
+		case voice.ATISCloudTypeFew:
+			sb.WriteString("few")
+		case voice.ATISCloudTypeScattered:
+			sb.WriteString("scattered")
+		case voice.ATISCloudTypeBroken:
+			sb.WriteString("broken")
+		case voice.ATISCloudTypeOvercast:
+			sb.WriteString("overcast")
+		}
+		sb.WriteString(" cloud in the ")
+		switch cloud.Unit {
+		case voice.ATISUnitMetric:
+			sb.WriteString(gen.formatMetricAltitude(cloud.Height))
+		case voice.ATISUnitImperial:
+			sb.WriteString(gen.formatImperialAltitude(cloud.Height))
+		}
+		sb.WriteString(",")
+	}
+	if len(atis.Clouds) > 0 {
+		sb.WriteString(".")
+	}
+	for _, visibility := range atis.Visibility {
+		sb.WriteString("visibility ")
+		if visibility.Visibility >= 9999 {
+			sb.WriteString("more than ten kilometers")
+		} else {
+			sb.WriteString(gen.formatMetricAltitude(visibility.Visibility))
+		}
+		if visibility.Direction != "" {
+			sb.WriteString(" AT ")
+			sb.WriteString(visibility.Direction)
+		}
+		sb.WriteString(",")
+	}
+	if len(atis.Visibility) > 0 {
+		sb.WriteString(".")
+	}
+	for _, visualRange := range atis.RunwayVisualRange {
+		sb.WriteString("visual range for runway ")
+		sb.WriteString(gen.formatRunway(visualRange.Runway))
+		if visualRange.HighVisibility == visualRange.LowVisibility {
+			sb.WriteString(" is ")
+			switch visualRange.OverRange {
+			case voice.ATISRVROverRangeTypeNone:
+			case voice.ATISRVROverRangeTypeUp:
+				sb.WriteString("more than ")
+			case voice.ATISRVROverRangeTypeDown:
+				sb.WriteString("less than ")
+			}
+			sb.WriteString(gen.formatMetricAltitude(visualRange.LowVisibility))
+		} else {
+			sb.WriteString(" between ")
+			sb.WriteString(gen.formatMetricAltitude(visualRange.LowVisibility))
+			sb.WriteString(" and ")
+			sb.WriteString(gen.formatMetricAltitude(visualRange.HighVisibility))
+		}
+		switch visualRange.Trend {
+		case voice.ATISRVRTrendNone:
+		case voice.ATISRVRTrendUp:
+			sb.WriteString(" increasing")
+		case voice.ATISRVRTrendDown:
+			sb.WriteString(" decreasing")
+		}
+		sb.WriteString(",")
+	}
+	if len(atis.RunwayVisualRange) > 0 {
+		sb.WriteString(".")
+	}
 	if atis.TransitionLevel != 0 {
-		sb.WriteString(" transition level is ")
+		sb.WriteString("transition level is ")
 		sb.WriteString(gen.formatMetricAltitude(atis.TransitionLevel))
+		sb.WriteString(".")
 	}
 	if atis.TransitionAltitude != 0 {
-		sb.WriteString(", transition altitude is ")
+		sb.WriteString("transition altitude is ")
 		sb.WriteString(gen.formatMetricAltitude(atis.TransitionAltitude))
+		sb.WriteString(".")
 	}
-	sb.WriteString(", advice on initial contact you have information ")
+	sb.WriteString("advice on initial contact you have information ")
 	sb.WriteString(voice.ICAOLettersMap[atis.Letter])
 	return sb.String()
 }

@@ -106,7 +106,7 @@ type ATIS struct {
 	Arrival            *ATISArrival
 	Time               string
 	Wind               *ATISWind
-	Visibility         *ATISVisibility
+	Visibility         []*ATISVisibility
 	Temperature        *ATISTemperature
 	RunwayVisualRange  []*ATISRunwayVisualRange
 	Clouds             []*ATISCloud
@@ -123,7 +123,7 @@ func NewATIS() *ATIS {
 		Departure:         &ATISDeparture{Runways: make([]string, 0)},
 		Arrival:           &ATISArrival{Runways: make([]string, 0), ApproachType: ATISApproachTypeILS},
 		Wind:              &ATISWind{Unit: ATISUnitMetric},
-		Visibility:        &ATISVisibility{},
+		Visibility:        make([]*ATISVisibility, 0),
 		Temperature:       &ATISTemperature{},
 		RunwayVisualRange: make([]*ATISRunwayVisualRange, 0),
 		Clouds:            make([]*ATISCloud, 0),

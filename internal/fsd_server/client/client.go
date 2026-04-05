@@ -146,6 +146,9 @@ func NewClient(
 		voiceServer:         applicationContent.VoiceServer(),
 		atisLetter:          "",
 	}
+	if client.isAtis {
+		client.visualRange = 50
+	}
 	return client
 }
 
@@ -396,7 +399,9 @@ func (client *Client) UpdateAtcPos(frequency int, facility Facility, visualRange
 	_ = client.SetPosition(0, lat, lon)
 	client.frequency = frequency
 	client.facility = facility
-	client.visualRange = visualRange
+	if !client.isAtis {
+		client.visualRange = visualRange
+	}
 	client.checkVisPoint()
 }
 
@@ -423,14 +428,14 @@ func (client *Client) UpdateATISLetter(letter string) {
 	if client.atisLetter == letter {
 		return
 	}
-	// 延迟1秒更新防止刚上线频率为199998
-	time.AfterFunc(time.Second, func() {
+	go func() {
+		// 等待频率转换
 		for client.Frequency() == 99998 {
 			time.Sleep(time.Second)
 		}
 		client.voiceServer.ATISUpdate(client, letter)
 		client.audioOnline = true
-	})
+	}()
 	client.atisLetter = letter
 }
 

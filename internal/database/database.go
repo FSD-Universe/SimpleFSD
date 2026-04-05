@@ -59,7 +59,7 @@ func ConnectDatabase(lg log.LoggerInterface, config *config.Config, debug bool) 
 
 	if err = db.Migrator().AutoMigrate(&User{}, &FlightPlan{}, &History{}, &Activity{}, &ActivityATC{},
 		&ActivityPilot{}, &ActivityFacility{}, &AuditLog{}, &ControllerRecord{}, &Ticket{}, &ControllerApplication{}, &Announcement{},
-		&OAuth2Client{}, &OAuth2AuthorizationCode{}, &OAuth2Token{}); err != nil {
+		&OAuth2Client{}, &OAuth2AuthorizationCode{}, &OAuth2Token{}, &Meta{}); err != nil {
 		return nil, nil, Errorf("error occured while migrating operation: %v", err)
 	}
 
@@ -94,6 +94,7 @@ func ConnectDatabase(lg log.LoggerInterface, config *config.Config, debug bool) 
 			NewTicketOperation(lg, db, queryTimeout),
 			NewAnnouncementOperation(lg, db, queryTimeout),
 			NewOAuth2Operation(lg, db, queryTimeout),
+			NewMetaOperation(lg, db, queryTimeout),
 		),
 		nil
 }
