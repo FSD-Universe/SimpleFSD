@@ -217,6 +217,7 @@ func StartHttpServer(applicationContent *ApplicationContent) {
 	flightPlanOperation := applicationContent.Operations().FlightPlanOperation()
 	announcementOperation := applicationContent.Operations().AnnouncementOperation()
 	oauth2Operation := applicationContent.Operations().OAuth2Operation()
+	metaOperation := applicationContent.Operations().MetaOperation()
 	metarManager := applicationContent.MetarManager()
 
 	auditLogService := impl.NewAuditService(logger, auditLogOperation)
@@ -254,6 +255,10 @@ func StartHttpServer(applicationContent *ApplicationContent) {
 	oauth2Service := impl.NewOAuth2Service(logger, httpConfig, messageQueue, oauth2Operation, userOperation, auditLogOperation)
 	metarService := impl.NewMetarService(logger, metarManager)
 
+	softwareCache := cache.NewMemoryCache[*service.ResponseGetSoftware](time.Hour)
+	defer softwareCache.Close()
+	softwareService := impl.NewSoftwareService(logger, metaOperation, softwareCache)
+
 	logger.Info("Controller initializing...")
 
 	userController := controller.NewUserHandler(logger, userService)
@@ -270,6 +275,7 @@ func StartHttpServer(applicationContent *ApplicationContent) {
 	announcementController := controller.NewAnnouncementController(logger, announcementService)
 	oauth2Controller := controller.NewOAuth2Controller(logger, httpConfig.OAuth2, oauth2Service)
 	metarServiceController := controller.NewMetarServiceController(logger, metarService)
+	softwareController := controller.NewSoftwareController(logger, softwareService)
 
 	logger.Info("Applying router...")
 
@@ -398,6 +404,10 @@ func StartHttpServer(applicationContent *ApplicationContent) {
 			})
 		})
 	}
+
+	softwareGroup := apiGroup.Group("/software")
+	softwareGroup.GET("/:name", softwareController.GetSoftware)
+	softwareGroup.DELETE("/:name", softwareController.FlushSoftwareCache, jwtMiddleware, requireMainToken)
 
 	chartGroup := apiGroup.Group("/charts")
 

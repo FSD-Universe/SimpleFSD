@@ -32,7 +32,7 @@ func (op *MetaOperation) GetMeta(key string) (meta *operation.Meta, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), op.timeout)
 	defer cancel()
 	meta = &operation.Meta{}
-	if err = op.db.WithContext(ctx).Where("key = ?", key).First(meta).Error; err != nil {
+	if err = op.db.WithContext(ctx).Where("`key` = ?", key).First(meta).Error; err != nil {
 		op.logger.ErrorF("Failed to get meta: %v", err)
 		return nil, err
 	}
