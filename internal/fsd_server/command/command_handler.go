@@ -19,13 +19,23 @@ import (
 	"github.com/half-nothing/simple-fsd/internal/utils"
 )
 
-func (content *CommandContent) verifyFsdUserInfo(session SessionInterface, callsign string, protocol int, cid operation.UserId, password string) *Result {
-	if !callsignValid(callsign) {
-		return ResultError(CallsignInvalid, true, callsign, nil)
+func (content *CommandContent) tryDecodeJwt(token string) (*service.FsdClaims, error) {
+	claims, err := jwt.ParseWithClaims(token, &service.FsdClaims{}, content.defaultKeyFunc)
+	if err != nil {
+		return nil, err
 	}
 
-	if protocol != 9 && protocol != 101 && protocol != 100 {
-		return ResultError(InvalidProtocolVision, true, callsign, nil)
+	val, ok := claims.Claims.(*service.FsdClaims)
+	if !ok {
+		return nil, errors.New("invalid claims type")
+	}
+
+	return val, nil
+}
+
+func (content *CommandContent) verifyFsdUserInfo(session SessionInterface, callsign string, cid operation.UserId, password string) *Result {
+	if !callsignValid(callsign) {
+		return ResultError(CallsignInvalid, true, callsign, nil)
 	}
 
 	user, err := cid.GetUser(content.userOperation)
@@ -36,19 +46,9 @@ func (content *CommandContent) verifyFsdUserInfo(session SessionInterface, calls
 		return ResultError(CidSuspended, true, callsign, nil)
 	}
 
-	if protocol == 9 {
-		if !content.userOperation.VerifyUserPassword(user, password) {
-			return ResultError(InvalidCidPassword, true, callsign, nil)
-		}
-	} else {
-		claims, err := jwt.ParseWithClaims(password, &service.FsdClaims{}, content.defaultKeyFunc)
-		if err != nil {
-			return ResultError(InvalidCidPassword, true, callsign, err)
-		}
-
-		if _, ok := claims.Claims.(*service.FsdClaims); !ok {
-			return ResultError(InvalidCidPassword, true, callsign, errors.New("invalid claims type"))
-		}
+	_, err = content.tryDecodeJwt(password)
+	if err != nil && !content.userOperation.VerifyUserPassword(user, password) {
+		return ResultError(InvalidCidPassword, true, callsign, nil)
 	}
 
 	client, ok := content.clientManager.GetClient(callsign)
@@ -99,13 +99,9 @@ func (content *CommandContent) verifyVatsimUserInfo(session SessionInterface, ca
 		return ResultError(CidSuspended, true, callsign, nil)
 	}
 
-	claims, err := jwt.ParseWithClaims(token, &service.FsdClaims{}, content.defaultKeyFunc)
-	if err != nil {
-		return ResultError(InvalidCidPassword, true, callsign, err)
-	}
-
-	if _, ok := claims.Claims.(*service.FsdClaims); !ok {
-		return ResultError(InvalidCidPassword, true, callsign, errors.New("invalid claims type"))
+	_, err = content.tryDecodeJwt(token)
+	if err != nil && !content.userOperation.VerifyUserPassword(user, token) {
+		return ResultError(InvalidCidPassword, true, callsign, nil)
 	}
 
 	client, ok := content.clientManager.GetClient(callsign)
@@ -179,13 +175,7 @@ func (content *CommandContent) HandleVatsimAddAtc(session SessionInterface, data
 	callsign := data[0]
 	cid := operation.GetUserId(data[3])
 	if result := content.verifyVatsimUserInfo(session, callsign, cid, data[4]); result != nil {
-		if result.Errno == CallsignInUse || result.Errno == InvalidClient || result.Errno == CidSuspended {
-			return result
-		}
-		r := content.verifyFsdUserInfo(session, callsign, 9, cid, data[4])
-		if r != nil {
-			return result
-		}
+		return result
 	}
 	reqRating := utils.StrToInt(data[5], 0)
 	if result := content.checkRatingAndFacility(session, reqRating, callsign); result != nil {
@@ -214,7 +204,7 @@ func (content *CommandContent) HandleFsdAddAtc(session SessionInterface, data []
 	cid := operation.GetUserId(data[3])
 	password := data[4]
 	protocol := utils.StrToInt(data[6], 0)
-	if result := content.verifyFsdUserInfo(session, callsign, protocol, cid, password); result != nil {
+	if result := content.verifyFsdUserInfo(session, callsign, cid, password); result != nil {
 		return result
 	}
 	reqRating := utils.StrToInt(data[5], 0)
@@ -257,7 +247,7 @@ func (content *CommandContent) HandleFsdAddPilot(session SessionInterface, data 
 	cid := operation.GetUserId(data[2])
 	password := data[3]
 	protocol := utils.StrToInt(data[5], 0)
-	result := content.verifyFsdUserInfo(session, callsign, protocol, cid, password)
+	result := content.verifyFsdUserInfo(session, callsign, cid, password)
 	if result != nil {
 		return result
 	}
