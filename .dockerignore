@@ -1,8 +1,7 @@
-bin/
 .idea/
+.github/
+docs/
+external/
 runtime/
-fsd*
-*.zip
-.env
-external/pockettts/cache
-external/redis/data
+CODE_OF_CONDUCT.md
+LICENSE

@@ -71,13 +71,15 @@ func (content *CommandContent) verifyFsdUserInfo(session SessionInterface, calls
 		}
 	}
 
-	connections, err := content.connectionManager.GetConnections(user.Cid)
-	if err == nil {
-		connections = utils.Filter(connections, func(connection ClientInterface) bool {
-			return !connection.Disconnected() && (!connection.IsAtc() || !connection.IsAtis())
-		})
-		if len(connections) >= content.maxConnections {
-			return ResultError(ServerFull, true, callsign, nil)
+	if !content.isSimulatorServer {
+		connections, err := content.connectionManager.GetConnections(user.Cid)
+		if err == nil {
+			connections = utils.Filter(connections, func(connection ClientInterface) bool {
+				return !connection.Disconnected() && (!connection.IsAtc() || !connection.IsAtis())
+			})
+			if len(connections) >= content.maxConnections {
+				return ResultError(ServerFull, true, callsign, nil)
+			}
 		}
 	}
 
@@ -124,13 +126,15 @@ func (content *CommandContent) verifyVatsimUserInfo(session SessionInterface, ca
 		}
 	}
 
-	connections, err := content.connectionManager.GetConnections(user.Cid)
-	if err == nil {
-		connections = utils.Filter(connections, func(connection ClientInterface) bool {
-			return !connection.Disconnected() && (!connection.IsAtc() || !connection.IsAtis())
-		})
-		if len(connections) >= content.maxConnections {
-			return ResultError(ServerFull, true, callsign, nil)
+	if !content.isSimulatorServer {
+		connections, err := content.connectionManager.GetConnections(user.Cid)
+		if err == nil {
+			connections = utils.Filter(connections, func(connection ClientInterface) bool {
+				return !connection.Disconnected() && (!connection.IsAtc() || !connection.IsAtis())
+			})
+			if len(connections) >= content.maxConnections {
+				return ResultError(ServerFull, true, callsign, nil)
+			}
 		}
 	}
 

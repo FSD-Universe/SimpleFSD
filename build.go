@@ -32,7 +32,7 @@ func main() {
 	}
 
 	// 获取git版本
-	gitVersion, err := exec.Command("git", "describe", "--tags", "--always", "--dirty").Output()
+	gitVersion, err := exec.Command("git", "describe", "--tags", "--always").Output()
 	if err != nil {
 		gitVersion = []byte("unknown")
 	}
